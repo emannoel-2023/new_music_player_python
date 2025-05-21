@@ -1,0 +1,17 @@
+soundwave/
+│
+├── audio.py
+├── biblioteca.py
+├── comandos.py
+├── historico.py
+├── main.py
+├── playlist.py
+├── recursos.py
+├── testes/
+│   ├── test_audio.py
+│   ├── test_biblioteca.py
+│   └── test_playlist.py
+├── ui.py
+├── utils.py
+├── requirements.txt
+└── README.md

@@ -1,0 +1,6 @@
+pygame
+numpy
+psutil
+windows-curses
+pyfiglet
+pyaudio
