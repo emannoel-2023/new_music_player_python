@@ -547,7 +547,7 @@ class UIPlayer:
                 self.anterior()
             elif key in (ord('4'), ):
                 self.proxima()
-            elif key in (ord('+'), ):
+            elif key in (ord('='), ):
                 self.aumentar_volume()
             elif key in (ord('-'), ):
                 self.diminuir_volume()
