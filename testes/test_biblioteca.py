@@ -1,5 +1,8 @@
-import unittest
+import sys
 import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
+import unittest
 from biblioteca import Biblioteca
 
 class TestBiblioteca(unittest.TestCase):
@@ -7,7 +10,7 @@ class TestBiblioteca(unittest.TestCase):
         self.bib = Biblioteca()
 
     def test_carregar_diretorio_valido(self):
-        caminho = os.getcwd()  # Diretório atual deve existir
+        caminho = os.getcwd()
         musicas = self.bib.carregar_diretorio(caminho)
         self.assertIsInstance(musicas, list)
 
