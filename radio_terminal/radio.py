@@ -187,7 +187,6 @@ class MPVIPCClient(Thread):
                     self._responses[msg['request_id']] = msg
         except Exception:
             pass
-
     def send_command(self, command, args=None):
         with self._lock:
             self._request_id += 1
@@ -217,17 +216,17 @@ class MPVIPCClient(Thread):
 
 class RadioPlayer:
     RADIO_ART = [
-        "     !",
-        "     |",
-        "  | |~/",
-        "  | _|~",
-        " .============.| (_| |~/",
-        " .-;____________;|. _|~",
-        " | [_________I__] | (_|",
-        " | \"\"\"\"\" (_) (_) |",
+        "                 !",
+        "                 |",
+        "                 |   ~/",
+        "                 |   _|~",
+        "   .============.|  (_|  |~/",
+        " .-;____________;|.     _|~",
+        " | [_________I__] |    (_|",
+        " | \"\"\" (_) (_)    |",
         " | .=====..=====. |",
         " | |:::::||:::::| |",
-        " jgs | '=====''=====' |",
+        " | '=====''=====' |",
         " '----------------'"
     ]
 
@@ -597,3 +596,25 @@ class RadioPlayer:
         except Exception:
             pass
         self.stop_event.set()
+
+# Ponto de entrada principal para curses
+def main(stdscr):
+    player = RadioPlayer()
+    try:
+        player.draw_interface(stdscr)
+    except Exception as e:
+        stdscr.clear()
+        stdscr.addstr(0, 0, "Erro inesperado:")
+        stdscr.addstr(1, 0, str(e))
+        stdscr.addstr(3, 0, "Pressione qualquer tecla para sair...")
+        stdscr.refresh()
+        stdscr.getch()
+        raise
+
+if __name__ == '__main__':
+    import traceback
+    try:
+        curses.wrapper(main)
+    except Exception:
+        traceback.print_exc()
+        input("Pressione Enter para sair...")

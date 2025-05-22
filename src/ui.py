@@ -5,11 +5,11 @@ import json
 import psutil
 import math
 from pyfiglet import Figlet
-
 from audio import AudioPlayer
 from playlist import PlaylistManager
 from historico import Historico
 from utils import formatar_tempo
+import subprocess
 
 # Importação do módulo do rádio
 from radio_terminal.radio import RadioPlayer
@@ -39,6 +39,9 @@ def uso_recursos():
     ram = p.memory_info().rss / (1024 * 1024)
     return cpu, ram
 
+def limpar_terminal():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
 class UIPlayer:
     def __init__(self, stdscr):
         self.stdscr = stdscr
@@ -51,8 +54,6 @@ class UIPlayer:
         self.executando = True
         self.favoritos = set()
         self.espectro_atual = [0] * 20
-
-        # Rádio
         self.radio_ativo = False
         self.radio_player = RadioPlayer()
         self.musica_pausada_para_radio = False
@@ -61,11 +62,9 @@ class UIPlayer:
         self.stdscr.nodelay(True)
         self.stdscr.keypad(True)
         curses.curs_set(0)
-
         self.carregar_historico()
         self.carregar_favoritos()
         self.playlist.carregar_estado()
-
         if self.playlist.playlists:
             primeira = next(iter(self.playlist.playlists))
             self.playlist.playlist_atual = self.playlist.playlists[primeira].copy()
@@ -96,7 +95,7 @@ class UIPlayer:
             if os.path.exists(HISTORICO_ARQUIVO):
                 with open(HISTORICO_ARQUIVO, 'r', encoding='utf-8') as f:
                     dados = json.load(f)
-                    self.historico.pilha = dados if isinstance(dados, list) else []
+                self.historico.pilha = dados if isinstance(dados, list) else []
             else:
                 self.historico.pilha = []
         except Exception as e:
@@ -115,7 +114,7 @@ class UIPlayer:
             if os.path.exists(FAVORITOS_ARQUIVO):
                 with open(FAVORITOS_ARQUIVO, 'r', encoding='utf-8') as f:
                     dados = json.load(f)
-                    self.favoritos = set(dados) if isinstance(dados, list) else set()
+                self.favoritos = set(dados) if isinstance(dados, list) else set()
             else:
                 self.favoritos = set()
         except Exception as e:
@@ -371,11 +370,11 @@ class UIPlayer:
             self.player.carregar_musica(musica)
             self.player.play_pause()
             self.historico.adicionar(musica)
-            altura_visivel = curses.LINES - 10
-            if self.playlist_selecionada < self.playlist_offset * 10:
-                self.playlist_offset = self.playlist_selecionada // 10
-            elif self.playlist_selecionada >= (self.playlist_offset + 1) * 10:
-                self.playlist_offset = self.playlist_selecionada // 10
+        altura_visivel = curses.LINES - 10
+        if self.playlist_selecionada < self.playlist_offset * 10:
+            self.playlist_offset = self.playlist_selecionada // 10
+        elif self.playlist_selecionada >= (self.playlist_offset + 1) * 10:
+            self.playlist_offset = self.playlist_selecionada // 10
 
     def aumentar_volume(self):
         vol_novo = min(1.0, self.player.get_volume() + 0.05)
@@ -398,26 +397,75 @@ class UIPlayer:
                 break
             time.sleep(0.1)
 
+
+    def draw_interface(self, stdscr):
+        self.stdscr = stdscr  # garante que o stdscr está atualizado
+        self.stdscr.clear()
+        self.desenhar_borda()
+        self.desenhar_titulo()
+        self.desenhar_espectro(y=7, x=2)      # ajuste as coordenadas conforme layout
+        self.desenhar_volume(y=12, x=2)
+        self.desenhar_playlist(y=14, x=2, altura=12, largura=40)
+        self.desenhar_status(y=curses.LINES - 5, x=2)
+        self.desenhar_recursos(y=curses.LINES - 3, x=2)
+        self.stdscr.refresh()
+    
+    
+    def abrir_radio(self):
+        musica_carregada = getattr(self.player, 'get_nome', lambda: None)()
+        tocando = False
+        if musica_carregada:
+            if hasattr(self.player, 'is_playing'):
+                tocando = self.player.is_playing()
+            elif hasattr(self.player, 'pausado'):
+                tocando = not self.player.pausado
+            else:
+                tocando = True
+
+        if musica_carregada and tocando:
+            try:
+                self.player.play_pause()
+                self.musica_pausada_para_radio = True
+            except Exception:
+                self.musica_pausada_para_radio = False
+        else:
+            self.musica_pausada_para_radio = False
+
+        curses.endwin()
+        radio_dir = os.path.join(os.getcwd(), 'radio_terminal')
+        radio_script = os.path.join(radio_dir, 'radio.py')
+
+        try:
+            proc = subprocess.Popen([
+                'cmd.exe', '/c', 'start', '/wait', 'cmd', '/c',
+                'python', radio_script
+            ], cwd=radio_dir)
+            proc.wait()  # Aguarda o rádio fechar
+        except FileNotFoundError:
+            subprocess.call(['python3', radio_script], cwd=radio_dir)
+
+        time.sleep(0.1)
+
+        self.stdscr = curses.initscr()
+        curses.noecho()
+        curses.cbreak()
+        self.stdscr.keypad(True)
+        curses.curs_set(0)
+        init_cores()
+        self.stdscr.clear()
+        self.stdscr.refresh()
+
+        if musica_carregada and self.musica_pausada_para_radio:
+            try:
+                self.player.play_pause()
+            except Exception:
+                pass
+            self.musica_pausada_para_radio = False
+
+        self.draw_interface(self.stdscr)
+
     def loop(self):
         while self.executando:
-            if self.radio_ativo:
-                self.radio_player.draw_interface(self.stdscr)  # Limita a 2 colunas dentro do radio.py
-                self.stdscr.refresh()
-                key = self.stdscr.getch()
-                if key in (ord('b'), ord('B')):
-                    # Voltar para player
-                    self.radio_player.stop()
-                    self.radio_ativo = False
-                    if self.musica_pausada_para_radio:
-                        self.player.play_pause()
-                        self.musica_pausada_para_radio = False
-                    continue
-                else:
-                    # Passar comando para rádio
-                    self.radio_player.handle_input(key)
-                    time.sleep(0.05)
-                    continue
-
             self.stdscr.erase()
             self.desenhar_borda()
             self.desenhar_titulo()
@@ -432,7 +480,6 @@ class UIPlayer:
             self.desenhar_status(y_pos, 2)
             y_pos += 2
             self.desenhar_recursos(curses.LINES - 4, 2)
-
             menu_line1 = "[1]Abrir [2]Play/Pause [3]Ant [4]Próx [+/-]Vol [C]Criar [A]Add [D]Rem [F]Fav"
             menu_line2 = "[S]Saltar [O]Ordenar [H]Histórico [L]Listar [Enter]Tocar [Q]Sair [R]Rádio"
             self.stdscr.attron(curses.A_REVERSE)
@@ -440,22 +487,18 @@ class UIPlayer:
             self.stdscr.addstr(curses.LINES - 2, 2, menu_line2)
             self.stdscr.attroff(curses.A_REVERSE)
             self.stdscr.refresh()
-
             try:
                 key = self.stdscr.getch()
             except KeyboardInterrupt:
                 break
-
             if key == -1:
                 time.sleep(0.05)
                 continue
-
             itens_por_coluna = 10
             if self.playlist.playlist_atual:
                 max_col = (len(self.playlist.playlist_atual) - 1) // itens_por_coluna
             else:
                 max_col = 0
-
             if key == curses.KEY_LEFT:
                 if self.playlist_offset > 0:
                     self.playlist_offset -= 1
@@ -474,45 +517,50 @@ class UIPlayer:
                     self.playlist_selecionada += 1
                     if self.playlist_selecionada >= (self.playlist_offset + 1) * itens_por_coluna:
                         self.playlist_offset += 1
-            elif key == ord('1'):
-                self.abrir_diretorio()
-            elif key == ord('2'):
-                self.play_pause()
-            elif key == ord('3'):
-                self.anterior()
-            elif key == ord('4'):
-                self.proxima()
-            elif key == ord('+') or key == ord('='):
-                self.aumentar_volume()
-            elif key == ord('-'):
-                self.diminuir_volume()
-            elif key == ord('c') or key == ord('C'):
-                self.criar_playlist()
-            elif key == ord('a') or key == ord('A'):
-                self.adicionar_musica_playlist()
-            elif key == ord('d') or key == ord('D'):
-                self.remover_musica_playlist()
-            elif key == ord('f') or key == ord('F'):
-                self.favoritar_desfavoritar()
-            elif key == ord('s') or key == ord('S'):
-                self.saltar_para_musica()
-            elif key == ord('o') or key == ord('O'):
-                self.ordenar_playlist()
-            elif key == ord('h') or key == ord('H'):
+            elif key in (ord('q'), ord('Q')):
+                self.executando = False
+                break
+            elif key in (ord('r'), ord('R')):
+                self.abrir_radio()
+                continue
+            elif key in (ord('h'), ord('H')):
                 self.mostrar_historico()
-            elif key == ord('l') or key == ord('L'):
+            elif key in (ord('l'), ord('L')):
                 self.listar_playlists()
+            elif key in (ord('c'), ord('C')):
+                self.criar_playlist()
+            elif key in (ord('a'), ord('A')):
+                self.adicionar_musica_playlist()
+            elif key in (ord('d'), ord('D')):
+                self.remover_musica_playlist()
+            elif key in (ord('f'), ord('F')):
+                self.favoritar_desfavoritar()
+            elif key in (ord('s'), ord('S')):
+                self.saltar_para_musica()
+            elif key in (ord('o'), ord('O')):
+                self.ordenar_playlist()
+            elif key in (ord('1'), ):
+                self.abrir_diretorio()
+            elif key in (ord('2'), ):
+                self.play_pause()
+            elif key in (ord('3'), ):
+                self.anterior()
+            elif key in (ord('4'), ):
+                self.proxima()
+            elif key in (ord('+'), ):
+                self.aumentar_volume()
+            elif key in (ord('-'), ):
+                self.diminuir_volume()
             elif key in (curses.KEY_ENTER, 10, 13):
                 self._tocar_selecionada()
-            elif key == ord('q') or key == ord('Q'):
-                self.executando = False
-            elif key == ord('r'):
-                # Ativar rádio
-                if self.player.get_nome() and self.player.get_progresso() > 0 and not getattr(self.player, 'pausado', False):
-                    self.player.play_pause()
-                    self.musica_pausada_para_radio = True
-                self.radio_ativo = True
             else:
-                pass  # Outros comandos
-
+                pass
             time.sleep(0.05)
+
+def main(stdscr):
+    limpar_terminal()
+    ui = UIPlayer(stdscr)
+    ui.loop()
+
+if __name__ == "__main__":
+    curses.wrapper(main)
