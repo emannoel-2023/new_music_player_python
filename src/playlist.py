@@ -1,6 +1,7 @@
 import os
 import json
-
+PASTA_DADOS = os.path.join(os.path.dirname(__file__), '..', 'data')
+ESTADO_PLAYER = os.path.join(PASTA_DADOS, 'estado_player.json')
 class PlaylistManager:
     def __init__(self):
         self.playlists = {}
@@ -41,25 +42,30 @@ class PlaylistManager:
         return False
 
     def salvar_estado(self):
-        try:
-            with open('estado_player.json', 'w') as f:
-                json.dump({
-                    'playlists': self.playlists,
-                    'favoritos': self.favoritos
-                }, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f"Erro ao salvar estado: {str(e)}")
-            return False
+            try:
+                with open(ESTADO_PLAYER, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        'playlists': self.playlists,
+                        'favoritos': self.favoritos
+                    }, f, indent=2, ensure_ascii=False)
+                return True
+            except Exception as e:
+                print(f"Erro ao salvar estado: {str(e)}")
+                return False
 
     def carregar_estado(self):
         try:
-            with open('estado_player.json', 'r') as f:
+            with open(ESTADO_PLAYER, 'r', encoding='utf-8') as f:
                 dados = json.load(f)
                 self.playlists = dados.get('playlists', {})
                 self.favoritos = dados.get('favoritos', [])
             return True
         except FileNotFoundError:
+            self.playlists = {}
+            self.favoritos = []
+            return False
+        except Exception as e:
+            print(f"Erro ao carregar estado: {str(e)}")
             self.playlists = {}
             self.favoritos = []
             return False
