@@ -179,6 +179,54 @@ class UIPlayer:
                 self.playlist_selecionada = 0
                 self.playlist_offset = 0
                 break
+    
+
+    def _pre_processar_audio_com_eq(self, caminho_original):
+        """
+        Pré-processa o áudio aplicando equalização e salva temporariamente
+        """
+        import tempfile
+        
+        try:
+            # Carrega o áudio original
+            audio = AudioSegment.from_file(caminho_original)
+            
+            # Converte para array numpy
+            samples = audio.get_array_of_samples()
+            arr = np.array(samples).astype(np.float32)
+            
+            # Se estéreo, processa ambos os canais
+            if audio.channels == 2:
+                # Separa canais
+                left = arr[0::2]
+                right = arr[1::2]
+                
+                # Aplica equalização em cada canal
+                left_eq = self._apply_equalizer(left, audio.frame_rate)
+                right_eq = self._apply_equalizer(right, audio.frame_rate)
+                
+                # Reconstrói áudio estéreo
+                arr_eq = np.empty(len(arr), dtype=np.float32)
+                arr_eq[0::2] = left_eq
+                arr_eq[1::2] = right_eq
+            else:
+                # Mono
+                arr_eq = self._apply_equalizer(arr, audio.frame_rate)
+            
+            # Converte de volta para AudioSegment
+            arr_eq = np.clip(arr_eq, -32768, 32767).astype(np.int16)
+            audio_eq = audio._spawn(arr_eq.tobytes())
+            
+            # Salva temporariamente
+            temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+            audio_eq.export(temp_file.name, format='wav')
+            
+            return temp_file.name
+        except Exception as e:
+            print(f"Erro no pré-processamento: {e}")
+            return caminho_original
+
+
 
     def controlar_equalizacao(self):
         """Interface para controlar equalização"""
@@ -209,11 +257,21 @@ class UIPlayer:
             elif key == curses.KEY_LEFT:
                 controle = controles[idx]
                 self.equalizacao[controle] = max(-10, self.equalizacao[controle] - 0.5)
-                self.player.set_equalizacao(**self.equalizacao)
+                # CORRETO: passar os valores separadamente
+                self.player.set_equalizacao(
+                    self.equalizacao['grave'], 
+                    self.equalizacao['medio'], 
+                    self.equalizacao['agudo']
+                )
             elif key == curses.KEY_RIGHT:
                 controle = controles[idx]
                 self.equalizacao[controle] = min(10, self.equalizacao[controle] + 0.5)
-                self.player.set_equalizacao(**self.equalizacao)
+                # CORRETO: passar os valores separadamente  
+                self.player.set_equalizacao(
+                    self.equalizacao['grave'], 
+                    self.equalizacao['medio'], 
+                    self.equalizacao['agudo']
+                )
 
     def _criar_barra_eq(self, valor):
         """Criar barra visual para equalização"""
@@ -321,32 +379,110 @@ class UIPlayer:
                 self.stdscr.addstr(idx, x_pos, linha)
                 self.stdscr.attroff(curses.color_pair(5) | curses.A_BOLD)
 
-    def desenhar_espectro(self, y, x, largura=20, altura=4):
-        num_barras = 20
-        progresso = self.player.get_progresso()
+    def desenhar_espectro(self, y, x, largura=80, altura=4):
+        # Calcular número de barras baseado na largura disponível
+        # Cada barra ocupa 2 caracteres, então num_barras = largura // 2
+        num_barras = min(40, largura // 2)  # Máximo 40 barras para performance
+        
         tocando = self.player.get_nome() and self.player.get_progresso() > 0 and not getattr(self.player, 'pausado', False)
-        if not tocando:
-            self.espectro_atual = [max(0, v - 0.2) for v in self.espectro_atual]
-        else:
-            self.espectro_atual = [min(altura-1, abs(math.sin(progresso * 3 + i * 0.5)) * (altura-1)) for i in range(num_barras)]
-        cores = [
-            curses.color_pair(4), curses.color_pair(5), curses.color_pair(6),
-            curses.color_pair(8), curses.color_pair(9), curses.color_pair(10)
-        ]
-        for j in range(altura):
-            self.stdscr.move(y + j, x)
-            self.stdscr.clrtoeol()
-        for i, val in enumerate(self.espectro_atual):
-            col = x + i * 4
-            h = int(val)
-            cor = cores[i % len(cores)]
-            for j in range(altura):
-                if col + 2 < curses.COLS:
-                    char = "██" if altura - j <= h else " "
-                    if altura - j <= h:
-                        self.stdscr.addstr(y + j, col, char, cor)
+        
+        if tocando:
+            try:
+                espectro = self.player.espectro(num_barras=num_barras)
+                
+                # Inicializa espectro atual se não existir ou tamanho mudou
+                if not hasattr(self, 'espectro_atual') or len(self.espectro_atual) != num_barras:
+                    self.espectro_atual = [0.0] * num_barras
+                
+                # Suavização mais responsiva
+                for i in range(min(len(espectro), len(self.espectro_atual))):
+                    atual = self.espectro_atual[i]
+                    novo = espectro[i] if i < len(espectro) else 0
+                    
+                    # Subida muito rápida, descida moderada
+                    if novo > atual:
+                        alpha = 0.9  # Subida quase instantânea
                     else:
-                        self.stdscr.addstr(y + j, col, " ")
+                        alpha = 0.6  # Descida mais rápida também
+                    
+                    self.espectro_atual[i] = alpha * novo + (1 - alpha) * atual
+                    
+            except Exception as e:
+                # Em caso de erro, usa valores padrão
+                if not hasattr(self, 'espectro_atual'):
+                    self.espectro_atual = [0.0] * num_barras
+        else:
+            # Decaimento quando pausado/parado
+            if not hasattr(self, 'espectro_atual'):
+                self.espectro_atual = [0.0] * num_barras
+            
+            # Decaimento mais rápido quando pausado
+            self.espectro_atual = [max(0, v * 0.75) for v in self.espectro_atual]
+        
+        # Cores do espectro (do grave para agudo)
+        cores = [
+            curses.color_pair(4),   # Graves - vermelho
+            curses.color_pair(5),   # Médio-graves - laranja  
+            curses.color_pair(6),   # Médios - amarelo
+            curses.color_pair(8),   # Médio-agudos - verde
+            curses.color_pair(9),   # Agudos - azul
+            curses.color_pair(10)   # Super agudos - magenta
+        ]
+        
+        # Limpa a área do espectro
+        for j in range(altura):
+            try:
+                self.stdscr.move(y + j, x)
+                self.stdscr.clrtoeol()
+            except curses.error:
+                pass
+        
+        # Desenha as barras ocupando toda a largura disponível
+        for i, val in enumerate(self.espectro_atual):
+            if i >= num_barras:
+                break
+                
+            col = x + i * 2  # Espaçamento entre barras
+            
+            # Verifica se ainda está dentro dos limites
+            if col >= curses.COLS - 1:
+                break
+                
+            h = max(0, min(altura, int(val + 0.5)))  # Arredondamento melhor
+            
+            # Escolhe cor baseada na posição (frequência)
+            if len(cores) > 0:
+                cor_idx = int((i / max(1, num_barras - 1)) * (len(cores) - 1))
+                cor = cores[min(cor_idx, len(cores) - 1)]
+            else:
+                cor = curses.color_pair(1)  # Cor padrão
+            
+            # Desenha a barra de baixo para cima
+            for j in range(altura):
+                if col < curses.COLS - 1:  # Verifica limite da tela
+                    if altura - j <= h:
+                        # Diferentes caracteres para diferentes intensidades
+                        if val > 5:
+                            char = "██"
+                        elif val > 4:
+                            char = "▓▓"
+                        elif val > 2:
+                            char = "▒▒"
+                        elif val > 0.5:
+                            char = "░░"
+                        else:
+                            char = "  "
+                        
+                        if altura - j <= h and val > 0.3:  # Threshold menor
+                            try:
+                                self.stdscr.addstr(y + j, col, char, cor)
+                            except curses.error:
+                                pass  # Ignora erros de posição
+                        else:
+                            try:
+                                self.stdscr.addstr(y + j, col, "  ")
+                            except curses.error:
+                                pass
 
     def desenhar_volume(self, y, x, largura=20):
         vol = self.player.get_volume()
@@ -362,7 +498,7 @@ class UIPlayer:
         self.stdscr.attroff(curses.A_BOLD)
         playlist = self.playlist.playlist_atual
         total = len(playlist)
-        itens_por_coluna = 10
+        itens_por_coluna = 8
         total_colunas = (total + itens_por_coluna - 1) // itens_por_coluna
         coluna_atual = self.playlist_offset
         inicio = coluna_atual * itens_por_coluna
@@ -634,7 +770,12 @@ class UIPlayer:
         self.stdscr.clear()
         self.desenhar_borda()
         self.desenhar_titulo()
-        self.desenhar_espectro(y=7, x=2)      # ajuste as coordenadas conforme layout
+        
+        # Calcula largura disponível para o espectro (considerando bordas)
+        largura_disponivel = curses.COLS - 6  # margem de 3 em cada lado
+        largura_espectro = min(76, largura_disponivel)  # máximo 76 ou o que couber
+        
+        self.desenhar_espectro(y=7, x=2, largura=largura_espectro, altura=4)
         self.desenhar_volume(y=12, x=2)
         self.desenhar_playlist(y=14, x=2, altura=12, largura=40)
         self.desenhar_status(y=curses.LINES - 5, x=2)
@@ -701,7 +842,7 @@ class UIPlayer:
             self.desenhar_borda()
             self.desenhar_titulo()
             y_pos = 6
-            self.desenhar_espectro(y_pos, 2, largura=80, altura=4)
+            self.desenhar_espectro(y_pos, 2, largura=76, altura=4)
             y_pos += 5
             altura_playlist = 10
             self.desenhar_playlist(y_pos, 2, altura_playlist, 60)
@@ -783,7 +924,7 @@ class UIPlayer:
                 self.anterior()
             elif key in (ord('4'), ):
                 self.proxima()
-            elif key in (ord('+'), ):
+            elif key in (ord('='), ord('+'), ):  # Aumentar volume
                 self.aumentar_volume()
             elif key in (ord('-'), ):
                 self.diminuir_volume()

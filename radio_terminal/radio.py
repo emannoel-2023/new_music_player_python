@@ -240,8 +240,8 @@ class RadioPlayer:
         self.ipc_socket_path = None
         self.current_radio_index = None
         self.current_status = {"title": "N/A", "status": "Stopped"}
-        self.bad_urls = self.load_markers('\\radio_terminal\\bad_urls.pkl', set())
-        self.good_urls = self.load_markers('\\radio_terminal\\good_urls.pkl', set())
+        self.bad_urls = self.load_markers('bad_urls.pkl', set())
+        self.good_urls = self.load_markers('good_urls.pkl', set())
         self.load_radios()
         self.network_monitor = NetworkMonitor()
         self.status_lock = Lock()
