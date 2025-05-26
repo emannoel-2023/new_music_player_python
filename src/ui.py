@@ -4,15 +4,17 @@ import os
 import json
 import psutil
 import math
+import subprocess
 from pyfiglet import Figlet
 from audio import AudioPlayer
 from playlist import PlaylistManager
 from historico import Historico
 from utils import formatar_tempo
-import subprocess
-
-# Importação do módulo do rádio
 from radio_terminal.radio import RadioPlayer
+from playlist import PlaylistManager
+from historico import Historico
+from biblioteca import Biblioteca
+from config_manager import ConfigManager
 
 PASTA_DADOS = os.path.join(os.path.dirname(__file__), '..', 'data')
 ESTADO_PLAYLIST_ARQUIVO = os.path.join(PASTA_DADOS, 'estado_playlist.json')
@@ -56,6 +58,13 @@ class UIPlayer:
         self.espectro_atual = [0] * 20
         self.radio_ativo = False
         self.radio_player = RadioPlayer()
+        self.biblioteca = Biblioteca()
+        self.config_manager = ConfigManager()
+        self.equalizacao = {'grave': 0, 'medio': 0, 'agudo': 0}
+        self.modo_visualizacao = 'lista'  # 'lista', 'artista', 'album', 'genero'
+        self.filtro_atual = None
+        self.termo_busca_atual = ""
+        self.player.add_observer(self)  # Registrar UI como observadora do player
         self.musica_pausada_para_radio = False
 
         init_cores()
@@ -72,6 +81,180 @@ class UIPlayer:
             if self.playlist.playlist_atual:
                 self.player.carregar_musica(self.playlist.playlist_atual[0])
                 self.historico.adicionar(self.playlist.playlist_atual[0])
+
+    def atualizar(self, evento):
+        """Método observer para atualizar a UI quando o player muda"""
+        if evento == 'carregar_musica':
+            # Atualizar display da música atual
+            pass
+        elif evento == 'play_pause':
+            # Atualizar status play/pause
+            pass
+        elif evento == 'volume':
+            self.volume = self.player.get_volume()
+        elif evento == 'equalizacao':
+            # Atualizar display da equalização
+            pass
+    
+    def buscar_musicas(self):
+        self.stdscr.nodelay(False)  # Torna getch() bloqueante
+        """Interface para buscar músicas"""
+        termo = self.solicitar_entrada("Digite o termo de busca: ", curses.LINES - 3)
+        if termo:
+            self.termo_busca_atual = termo
+            resultados = self.biblioteca.buscar(termo)
+            if resultados:
+                self.playlist.playlist_atual = [m.caminho for m in resultados]
+                self.playlist_selecionada = 0
+                self.playlist_offset = 0
+                self.stdscr.addstr(curses.LINES - 3, 2, f"Encontradas {len(resultados)} músicas. Pressione qualquer tecla...")
+            else:
+                self.stdscr.addstr(curses.LINES - 3, 2, "Nenhuma música encontrada! Pressione qualquer tecla...")
+            self.stdscr.getch()
+            self.stdscr.nodelay(True)  # Torna getch() bloqueante
+
+    def filtrar_por_categoria(self):
+        self.stdscr.nodelay(False)  # Torna getch() bloqueante
+        """Interface para filtrar por categoria"""
+        self.stdscr.clear()
+        self.stdscr.addstr(0, 2, "Filtrar por:", curses.color_pair(1) | curses.A_BOLD)
+        opcoes = ["1 - Artista", "2 - Álbum", "3 - Gênero", "4 - Limpar filtro"]
+        for i, opcao in enumerate(opcoes):
+            self.stdscr.addstr(i + 2, 2, opcao)
+        self.stdscr.addstr(len(opcoes) + 3, 2, "Escolha uma opção: ")
+        self.stdscr.refresh()
+        key = self.stdscr.getch()
+        if key == ord('1'):
+            self._filtrar_por('artista')
+        elif key == ord('2'):
+            self._filtrar_por('album')
+        elif key == ord('3'):
+            self._filtrar_por('genero')
+        elif key == ord('4'):
+            self.filtro_atual = None
+            self.playlist.playlist_atual = [m.caminho for m in self.biblioteca.musicas]
+            self.playlist_selecionada = 0
+        self.stdscr.nodelay(True)  # Torna getch() bloqueante
+
+    def _filtrar_por(self, categoria):
+        """Filtrar músicas por categoria específica"""
+        grupos = self.biblioteca.listar_por(categoria)
+        opcoes = list(grupos.keys())
+        if not opcoes:
+            self.stdscr.addstr(curses.LINES - 3, 2, "Nenhuma categoria encontrada! Pressione qualquer tecla...")
+            self.stdscr.getch()
+            return
+        self.stdscr.clear()
+        self.stdscr.addstr(0, 2, f"Filtrar por {categoria}:", curses.color_pair(1) | curses.A_BOLD)
+        idx = 0
+        while True:
+            self.stdscr.clear()
+            self.stdscr.addstr(0, 2, f"Filtrar por {categoria} (↑↓ para navegar, Enter para selecionar, Q para sair):", curses.color_pair(1) | curses.A_BOLD)
+            for i, opcao in enumerate(opcoes):
+                texto = f"> {opcao}" if i == idx else f"  {opcao}"
+                texto = str(texto)
+                maxlen = curses.COLS - 4  # 2 de margem de cada lado
+                if len(texto) > maxlen:
+                    texto = texto[:maxlen-3] + "..."
+                try:
+                    if i == idx:
+                        self.stdscr.attron(curses.color_pair(2))
+                        self.stdscr.addstr(i + 2, 2, texto)
+                        self.stdscr.attroff(curses.color_pair(2))
+                    else:
+                        self.stdscr.addstr(i + 2, 2, texto)
+                except curses.error:
+                    pass  # Ignora linhas que não cabem
+            self.stdscr.refresh()
+            key = self.stdscr.getch()
+            if key in (ord('q'), ord('Q')):
+                break
+            elif key == curses.KEY_UP and idx > 0:
+                idx -= 1
+            elif key == curses.KEY_DOWN and idx < len(opcoes) - 1:
+                idx += 1
+            elif key in (curses.KEY_ENTER, 10, 13):
+                self.filtro_atual = (categoria, opcoes[idx])
+                self.playlist.playlist_atual = [m.caminho for m in grupos[opcoes[idx]]]
+                self.playlist_selecionada = 0
+                self.playlist_offset = 0
+                break
+
+    def controlar_equalizacao(self):
+        """Interface para controlar equalização"""
+        self.stdscr.clear()
+        self.stdscr.addstr(0, 2, "Equalização (↑↓ para navegar, ←→ para ajustar, Q para sair)", curses.color_pair(1) | curses.A_BOLD)
+        controles = ['grave', 'medio', 'agudo']
+        idx = 0
+        while True:
+            self.stdscr.clear()
+            self.stdscr.addstr(0, 2, "Equalização (↑↓ para navegar, ←→ para ajustar, Q para sair)", curses.color_pair(1) | curses.A_BOLD)
+            for i, controle in enumerate(controles):
+                valor = self.equalizacao[controle]
+                barra = self._criar_barra_eq(valor)
+                if i == idx:
+                    self.stdscr.attron(curses.color_pair(2))
+                    self.stdscr.addstr(i + 3, 2, f"> {controle.upper()}: {barra} ({valor:+.1f})")
+                    self.stdscr.attroff(curses.color_pair(2))
+                else:
+                    self.stdscr.addstr(i + 3, 2, f"  {controle.upper()}: {barra} ({valor:+.1f})")
+            self.stdscr.refresh()
+            key = self.stdscr.getch()
+            if key in (ord('q'), ord('Q')):
+                break
+            elif key == curses.KEY_UP and idx > 0:
+                idx -= 1
+            elif key == curses.KEY_DOWN and idx < len(controles) - 1:
+                idx += 1
+            elif key == curses.KEY_LEFT:
+                controle = controles[idx]
+                self.equalizacao[controle] = max(-10, self.equalizacao[controle] - 0.5)
+                self.player.set_equalizacao(**self.equalizacao)
+            elif key == curses.KEY_RIGHT:
+                controle = controles[idx]
+                self.equalizacao[controle] = min(10, self.equalizacao[controle] + 0.5)
+                self.player.set_equalizacao(**self.equalizacao)
+
+    def _criar_barra_eq(self, valor):
+        """Criar barra visual para equalização"""
+        pos = int((valor + 10) / 20 * 20)  # Normalizar para 0-20
+        barra = "[" + "=" * pos + "|" + " " * (20 - pos) + "]"
+        return barra
+
+    def mostrar_estatisticas(self):
+        self.stdscr.nodelay(False)  # Torna getch() bloqueante
+        """Mostrar estatísticas detalhadas de reprodução"""
+        self.stdscr.clear()
+        self.stdscr.addstr(0, 2, "Estatísticas de Reprodução", curses.color_pair(1) | curses.A_BOLD)
+        stats = self.historico.estatisticas(10)
+        self.stdscr.addstr(2, 2, "Músicas mais tocadas:", curses.color_pair(3) | curses.A_BOLD)
+        for i, (musica, count) in enumerate(stats):
+            nome = os.path.basename(musica)
+            self.stdscr.addstr(3 + i, 4, f"{i+1}. {nome} ({count}x)")
+        y_pos = 3 + len(stats) + 2
+        self.stdscr.addstr(y_pos, 2, "Estatísticas Gerais:", curses.color_pair(3) | curses.A_BOLD)
+        self.stdscr.addstr(y_pos + 1, 4, f"Total de reproduções: {len(self.historico.pilha)}")
+        self.stdscr.addstr(y_pos + 2, 4, f"Músicas únicas: {len(set(self.historico.pilha))}")
+        self.stdscr.addstr(y_pos + 3, 4, f"Favoritos: {len(self.favoritos)}")
+        self.stdscr.addstr(y_pos + 4, 4, f"Playlists: {len(self.playlist.playlists)}")
+        if self.biblioteca.musicas:
+            y_pos += 6
+            self.stdscr.addstr(y_pos, 2, "Biblioteca:", curses.color_pair(3) | curses.A_BOLD)
+            self.stdscr.addstr(y_pos + 1, 4, f"Total de músicas: {len(self.biblioteca.musicas)}")
+            generos = self.biblioteca.listar_por('genero')
+            self.stdscr.addstr(y_pos + 2, 4, f"Gêneros diferentes: {len(generos)}")
+            artistas = self.biblioteca.listar_por('artista')
+            self.stdscr.addstr(y_pos + 3, 4, f"Artistas diferentes: {len(artistas)}")
+        self.stdscr.addstr(curses.LINES - 2, 2, "Pressione qualquer tecla para voltar...")
+        self.stdscr.refresh()
+        self.stdscr.getch()
+        self.stdscr.nodelay(True)  # Torna getch() bloqueante
+
+
+
+
+
+
 
     def solicitar_entrada(self, prompt, y):
         curses.echo()
@@ -212,6 +395,7 @@ class UIPlayer:
     def abrir_diretorio(self):
         caminho = self.solicitar_entrada("Cole o caminho do diretório: ", curses.LINES - 3)
         if os.path.isdir(caminho):
+            self.biblioteca.carregar_diretorio(caminho)
             self.playlist.carregar_diretorio(caminho)
             if self.playlist.playlist_atual:
                 self.playlist_selecionada = 0
@@ -222,6 +406,7 @@ class UIPlayer:
         else:
             self.stdscr.addstr(curses.LINES - 3, 2, "Diretório inválido! Pressione qualquer tecla...")
             self.stdscr.getch()
+
 
     def listar_playlists(self):
         self.stdscr.clear()
@@ -330,21 +515,67 @@ class UIPlayer:
             self.stdscr.getch()
 
     def ordenar_playlist(self):
-        opcao = self.solicitar_entrada("Ordenar por (n)ome ou (d)uração? ", curses.LINES - 3).lower()
-        if opcao == 'n':
-            self.playlist.playlist_atual.sort()
-        elif opcao == 'd':
-            import pygame
-            def duracao(musica):
-                try:
-                    som = pygame.mixer.Sound(musica)
-                    return som.get_length()
-                except:
-                    return 0
-            self.playlist.playlist_atual.sort(key=duracao)
+        from biblioteca import Musica
+        self.stdscr.nodelay(False)  # Torna getch() bloqueante
+        """Interface para ordenar playlist com múltiplos critérios"""
+        self.stdscr.clear()
+        self.stdscr.addstr(0, 2, "Ordenar playlist por:", curses.color_pair(1) | curses.A_BOLD)
+        opcoes = [
+            "1 - Nome do arquivo",
+            "2 - Duração",
+            "3 - Artista",
+            "4 - Álbum",
+            "5 - Título",
+            "6 - Gênero",
+            "7 - Data de adição"
+        ]
+        for i, opcao in enumerate(opcoes):
+            self.stdscr.addstr(i + 2, 2, opcao)
+        self.stdscr.addstr(len(opcoes) + 3, 2, "Escolha uma opção: ")
+        self.stdscr.refresh()
+        key = self.stdscr.getch()
+        if key == ord('1'):
+            self.playlist.playlist_atual.sort(key=lambda x: Musica(x).metadados.get('duracao', 0))
+        elif key == ord('2'):
+            self._ordenar_por_duracao()
+        elif key == ord('3'):
+            self._ordenar_por_metadado('artista')
+        elif key == ord('4'):
+            self._ordenar_por_metadado('album')
+        elif key == ord('5'):
+            self._ordenar_por_metadado('titulo')
+        elif key == ord('6'):
+            self._ordenar_por_metadado('genero')
+        elif key == ord('7'):
+            # Ordenar por ordem de adição (reverso do histórico)
+            pass
         else:
             self.stdscr.addstr(curses.LINES - 3, 2, "Opção inválida! Pressione qualquer tecla...")
             self.stdscr.getch()
+            return
+        self.playlist_selecionada = 0
+        self.playlist_offset = 0
+        self.stdscr.addstr(curses.LINES - 3, 2, "Playlist ordenada! Pressione qualquer tecla...")
+        self.stdscr.getch()
+        self.stdscr.nodelay(True)  # Torna getch() bloqueante
+
+    def _ordenar_por_metadado(self, metadado):
+        """Ordenar playlist por metadado específico"""
+        from biblioteca import Musica
+        self.playlist.playlist_atual.sort(
+            key=lambda x: Musica(x).metadados.get(metadado, '').lower()
+        )
+
+    def _ordenar_por_duracao(self):
+        """
+        Ordenar playlist por duração (usando metadados já carregados)
+        """
+        def get_duracao(caminho):
+            for m in self.biblioteca.musicas:
+                if m.caminho == caminho:
+                    return m.metadados.get('duracao', 0)
+            return 0
+        self.playlist.playlist_atual.sort(key=get_duracao)
 
     def play_pause(self):
         self.player.play_pause()
@@ -481,11 +712,16 @@ class UIPlayer:
             y_pos += 2
             self.desenhar_recursos(curses.LINES - 4, 2)
             menu_line1 = "[1]Abrir [2]Play/Pause [3]Ant [4]Próx [+/-]Vol [C]Criar [A]Add [D]Rem [F]Fav"
-            menu_line2 = "[S]Saltar [O]Ordenar [H]Histórico [L]Listar [Enter]Tocar [Q]Sair [R]Rádio"
+            menu_line2 = "[S]Saltar [O]Ordenar [H]Histórico [L]Listar [B]Buscar [T]Filtrar [E]EQ [X]Stats [Q]Sair [R]Rádio"
             self.stdscr.attron(curses.A_REVERSE)
             self.stdscr.addstr(curses.LINES - 3, 2, menu_line1)
             self.stdscr.addstr(curses.LINES - 2, 2, menu_line2)
             self.stdscr.attroff(curses.A_REVERSE)
+            self.config_manager.set('volume', self.volume)
+            self.config_manager.set('equalizacao', self.equalizacao)
+            self.config_manager.set('modo_visualizacao', self.modo_visualizacao)
+            self.salvar_historico()
+            self.salvar_favoritos()
             self.stdscr.refresh()
             try:
                 key = self.stdscr.getch()
@@ -547,10 +783,18 @@ class UIPlayer:
                 self.anterior()
             elif key in (ord('4'), ):
                 self.proxima()
-            elif key in (ord('='), ):
+            elif key in (ord('+'), ):
                 self.aumentar_volume()
             elif key in (ord('-'), ):
                 self.diminuir_volume()
+            elif key in (ord('b'), ord('B')):  # Buscar
+                self.buscar_musicas()
+            elif key in (ord('t'), ord('T')):  # Filtrar (fiT)
+                self.filtrar_por_categoria()
+            elif key in (ord('e'), ord('E')):  # Equalização
+                self.controlar_equalizacao()
+            elif key in (ord('x'), ord('X')):  # Estatísticas (eXtra)
+                self.mostrar_estatisticas()
             elif key in (curses.KEY_ENTER, 10, 13):
                 self._tocar_selecionada()
             else:

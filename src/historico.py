@@ -1,3 +1,5 @@
+from collections import Counter
+
 class Historico:
     def __init__(self):
         self.pilha = []
@@ -18,3 +20,10 @@ class Historico:
 
     def limpar(self):
         self.pilha = []
+
+    def estatisticas(self, top_n=5):
+        """
+        Retorna as músicas mais tocadas no histórico.
+        """
+        contagem = Counter(self.pilha)
+        return contagem.most_common(top_n)

@@ -23,11 +23,20 @@ class AudioPlayer:
         self.tempo_inicio = 0
         self.duracao = 0
         self.lock = threading.Lock()
+        self.observers = []
+        self.equalizacao = {'grave': 0, 'medio': 0, 'agudo': 0}
         pygame.init()
         self.EVENTO_FIM_MUSICA = pygame.USEREVENT + 1
         pygame.mixer.music.set_endevent(self.EVENTO_FIM_MUSICA)
         pygame.mixer.music.set_volume(self.volume)
         self.inicializado = True
+
+    def add_observer(self, obs):
+        self.observers.append(obs)
+
+    def notify(self, evento):
+        for obs in self.observers:
+            obs.atualizar(evento)
 
     def carregar_musica(self, caminho):
         with self.lock:
@@ -39,6 +48,7 @@ class AudioPlayer:
                     self.pausado = False
                     som = pygame.mixer.Sound(caminho)
                     self.duracao = som.get_length()
+                    self.notify('carregar_musica')
                     return True
                 except Exception as e:
                     print(f"Erro ao carregar música: {e}")
@@ -57,16 +67,19 @@ class AudioPlayer:
             else:
                 pygame.mixer.music.pause()
                 self.pausado = True
+            self.notify('play_pause')
 
     def parar(self):
         with self.lock:
             pygame.mixer.music.stop()
             self.pausado = False
+            self.notify('parar')
 
     def setar_volume(self, vol):
         with self.lock:
             self.volume = max(0.0, min(1.0, float(vol)))
             pygame.mixer.music.set_volume(self.volume)
+            self.notify('volume')
             return self.volume
 
     def get_volume(self):
@@ -113,3 +126,8 @@ class AudioPlayer:
             if event.type == self.EVENTO_FIM_MUSICA:
                 return True
         return False
+
+    def set_equalizacao(self, grave, medio, agudo):
+        self.equalizacao = {'grave': grave, 'medio': medio, 'agudo': agudo}
+        # Aqui você pode aplicar filtros reais usando pydub/scipy se quiser
+        self.notify('equalizacao')
