@@ -173,7 +173,7 @@ class UIComponents:
         try:
             self.stdscr.addstr(y, x, "Playlist Atual:")
         except curses.error:
-            pass 
+                pass 
         self.stdscr.attroff(curses.A_BOLD)
         
         total = len(playlist_atual)

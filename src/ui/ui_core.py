@@ -1,29 +1,18 @@
-# ui_core.py
+# ui_core.py (Atualizado com foco em play_pause, lógica do comando '2', Enter e volume, e correção do rádio)
+
 import curses
 import time
 import os
 import subprocess
+import threading
+import queue
 
 # Importações de módulos de utilitários e componentes
-from ui_utils import init_cores, uso_recursos, limpar_terminal # Mantém se estas funções são de ui_utils.py
+from ui_utils import init_cores, uso_recursos, limpar_terminal
 from ui_components import UIComponents
-# REMOVER esta importação, UIState não é mais necessária:
-# from ui_state import UIState
+from constants import PASTA_DADOS
 
-# Importa PASTA_DADOS do arquivo centralizado, se você não tiver utils.py na raiz, pode ser constants.py
-# Se init_cores e uso_recursos não estiverem em ui_utils, você precisaria de um 'utils.py' na raiz
-# ou importá-las de onde elas realmente estão definidas.
-# Para este exemplo, assumimos que elas estão em ui_utils.
-# Se você criou um 'constants.py' na raiz, o import seria:
-# from constants import PASTA_DADOS
-
-# Se você tem utils.py na raiz e moveu init_cores, uso_recursos para lá:
-# from utils import PASTA_DADOS, init_cores, uso_recursos
-# Caso contrário, mantenha como estava e adicione apenas o import de PASTA_DADOS de constants.py
-from constants import PASTA_DADOS # IMPORTANTE: Ajuste para 'from constants import PASTA_DADOS' se você criou 'constants.py'
-
-
-from audio import AudioPlayer
+from audio import AudioPlayer # Certifique-se que o audio.py está atualizado
 from playlist import PlaylistManager
 from historico import Historico
 from biblioteca import Biblioteca
@@ -36,52 +25,41 @@ class UIPlayer:
     def __init__(self, stdscr):
         self.stdscr = stdscr
         self.player = AudioPlayer()
-        self.playlist = PlaylistManager() # PlaylistManager agora carrega seu próprio estado e favoritos
-        self.historico = Historico() # Historico agora carrega seu próprio estado
+        self.playlist = PlaylistManager()
+        self.historico = Historico()
         self.biblioteca = Biblioteca()
         self.config_manager = ConfigManager()
-        self.radio_player = RadioPlayer()
+        self.radio_player_instance = None
 
         self.ui_components = UIComponents(stdscr)
-        # REMOVER: A definição de PASTA_DADOS e a inicialização de UIState não são mais necessárias aqui
-        # PASTA_DADOS = os.path.join(os.path.dirname(__file__), '..', 'data')
-        # self.ui_state = UIState(PASTA_DADOS)
 
         self.volume = self.player.get_volume()
         self.playlist_selecionada = 0
         self.playlist_offset = 0
         self.executando = True
         self.espectro_atual = [0] * 20
-        self.radio_ativo = False
+        self.radio_ativo = False # Flag para indicar se o rádio está ativo
         self.equalizacao = {'grave': 0, 'medio': 0, 'agudo': 0}
         self.modo_visualizacao = 'lista'
         self.filtro_atual = None
         self.termo_busca_atual = ""
-        self.musica_pausada_para_radio = False
+        self.musica_pausada_para_radio = False # Flag para saber se a música foi pausada para o rádio
 
         self.curses_lines = curses.LINES
         self.curses_cols = curses.COLS
 
-        # REMOVER: Favoritos e histórico são carregados pelos respectivos managers em seus __init__
-        # self.carregar_favoritos()
-        # self.carregar_historico()
-
-        init_cores() # Mantenha esta linha se init_cores vem de ui_utils ou utils.py
+        init_cores()
         self.stdscr.nodelay(True)
         self.stdscr.keypad(True)
         curses.curs_set(0)
 
-        # REMOVER: playlist.carregar_estado() já é chamada no __init__ de PlaylistManager
-        # self.playlist.carregar_estado()
-        if self.playlist.playlists:
-            primeira = next(iter(self.playlist.playlists))
-            self.playlist.playlist_atual = self.playlist.playlists[primeira].copy()
-            self.playlist_selecionada = 0
-            if self.playlist.playlist_atual:
-                self.player.carregar_musica(self.playlist.playlist_atual[0])
-                self.historico.adicionar(self.playlist.playlist_atual[0])
+        self.playlist.playlist_atual = []
 
         self.player.add_observer(self)
+
+        self.ui_message_queue = queue.Queue()
+
+        self.play_music_thread = None
 
     def atualizar(self, evento):
         if evento == 'carregar_musica':
@@ -93,8 +71,15 @@ class UIPlayer:
         elif evento == 'equalizacao':
             pass
         elif evento == 'musica_terminada':
+            # Apenas avança se o rádio não estiver ativo
             if not self.radio_ativo:
                 self.proxima()
+
+    def _display_ui_message(self, message):
+        try:
+            self.ui_message_queue.put_nowait(message)
+        except queue.Full:
+            pass
 
     def buscar_musicas(self):
         self.stdscr.nodelay(False)
@@ -106,9 +91,9 @@ class UIPlayer:
                 self.playlist.playlist_atual = [m.caminho for m in resultados]
                 self.playlist_selecionada = 0
                 self.playlist_offset = 0
-                self.ui_components.mostrar_mensagem(f"Encontradas {len(resultados)} músicas. Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message(f"Encontradas {len(resultados)} músicas. Pressione qualquer tecla...")
             else:
-                self.ui_components.mostrar_mensagem("Nenhuma música encontrada! Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message("Nenhuma música encontrada! Pressione qualquer tecla...")
         self.stdscr.nodelay(True)
 
     def filtrar_por_categoria(self):
@@ -138,11 +123,12 @@ class UIPlayer:
                 self.filtro_atual = None
                 self.playlist.playlist_atual = [m.caminho for m in self.biblioteca.musicas]
                 self.playlist_selecionada = 0
+                self.playlist_offset = 0
             else:
-                self.ui_components.mostrar_mensagem("Opção inválida! Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message("Opção inválida! Pressione qualquer tecla...")
 
         except curses.error:
-            self.ui_components.mostrar_mensagem("Terminal muito pequeno para filtrar!", curses.LINES - 3)
+            self._display_ui_message("Terminal muito pequeno para filtrar!")
 
         self.stdscr.nodelay(True)
 
@@ -150,7 +136,7 @@ class UIPlayer:
         grupos = self.biblioteca.listar_por(categoria)
         opcoes = list(grupos.keys())
         if not opcoes:
-            self.ui_components.mostrar_mensagem("Nenhuma categoria encontrada! Pressione qualquer tecla...", curses.LINES - 3)
+            self._display_ui_message("Nenhuma categoria encontrada! Pressione qualquer tecla...")
             return
         idx = 0
         while True:
@@ -181,7 +167,7 @@ class UIPlayer:
                         self.stdscr.addstr(i + 2, 2, texto)
                 self.stdscr.refresh()
             except curses.error:
-                self.ui_components.mostrar_mensagem("Terminal muito pequeno para listar opções!", curses.LINES - 3)
+                self._display_ui_message("Terminal muito pequeno para listar opções!")
                 break
 
             key = self.stdscr.getch()
@@ -253,7 +239,7 @@ class UIPlayer:
                         self.stdscr.addstr(i + 3, 2, line_text)
                 self.stdscr.refresh()
             except curses.error:
-                self.ui_components.mostrar_mensagem("Terminal muito pequeno para EQ!", curses.LINES - 3)
+                self._display_ui_message("Terminal muito pequeno para EQ!")
                 break
 
             key = self.stdscr.getch()
@@ -318,7 +304,7 @@ class UIPlayer:
                         self.stdscr.addstr(y_offset, 4, f"Músicas únicas: {len(set(self.historico.pilha))}")
                         y_offset += 1
                     if y_offset < curses.LINES - 2:
-                        self.stdscr.addstr(y_offset, 4, f"Favoritos: {len(self.playlist.favoritos)}") # Usando PlaylistManager.favoritos
+                        self.stdscr.addstr(y_offset, 4, f"Favoritos: {len(self.playlist.favoritos)}")
                         y_offset += 1
                     if y_offset < curses.LINES - 2:
                         self.stdscr.addstr(y_offset, 4, f"Playlists: {len(self.playlist.playlists)}")
@@ -342,40 +328,24 @@ class UIPlayer:
                             self.stdscr.addstr(y_offset, 4, f"Artistas diferentes: {len(artistas)}")
                             y_offset += 1
 
-            self.ui_components.mostrar_mensagem("Pressione qualquer tecla para voltar...", curses.LINES - 2)
+            self._display_ui_message("Pressione qualquer tecla para voltar...")
 
         except curses.error:
-            self.ui_components.mostrar_mensagem("Terminal muito pequeno para estatísticas!", curses.LINES - 3)
+            self._display_ui_message("Terminal muito pequeno para estatísticas!")
 
         self.stdscr.nodelay(True)
 
     def solicitar_entrada(self, prompt, y):
         return self.ui_components.solicitar_entrada(prompt, y)
 
-    # REMOVER estes métodos, Historico.py agora gerencia o salvamento e carregamento
-    # def salvar_historico(self):
-    #     self.ui_state.salvar_historico(self.historico.pilha)
-    # def carregar_historico(self):
-    #     self.historico.pilha = self.ui_state.carregar_historico()
-
-    # REMOVER estes métodos, PlaylistManager.py agora gerencia favoritos
-    # def salvar_favoritos(self):
-    #    self.ui_state.salvar_favoritos(self.favoritos)
-    # def carregar_favoritos(self):
-    #    self.favoritos = self.ui_state.carregar_favoritos()
-
     def abrir_diretorio(self):
-        """
-        Solicita ao usuário para colar o caminho de um diretório em uma mini-janela.
-        """
         self.stdscr.nodelay(False)
 
         min_cols_for_input_window = 70
         if curses.COLS < min_cols_for_input_window:
-            self.ui_components.mostrar_mensagem(
+            self._display_ui_message(
                 f"Terminal muito estreito! Por favor, aumente a largura do terminal (min {min_cols_for_input_window} colunas) para usar a entrada de diretório. "
-                "Pressione qualquer tecla...",
-                curses.LINES - 3
+                "Pressione qualquer tecla..."
             )
             self.stdscr.nodelay(True)
             return
@@ -389,20 +359,25 @@ class UIPlayer:
             caminho = caminho.replace('\\', '/')
 
         if os.path.isdir(caminho):
-            self.biblioteca.carregar_diretorio(caminho)
-            self.playlist.carregar_diretorio(caminho)
-            if self.playlist.playlist_atual:
-                self.playlist_selecionada = 0
-                self.playlist_offset = 0
-                self.player.carregar_musica(self.playlist.playlist_atual[0])
-                self.player.play()
-                self.historico.adicionar(self.playlist.playlist_atual[0])
-            self.ui_components.mostrar_mensagem(f"Diretório '{caminho}' carregado! Pressione qualquer tecla...", curses.LINES - 3)
+            if not self.play_music_thread or not self.play_music_thread.is_alive():
+                self.play_music_thread = threading.Thread(target=self._load_directory_and_play_first_threaded, args=(caminho,))
+                self.play_music_thread.daemon = True
+                self.play_music_thread.start()
+            else:
+                self._display_ui_message("Operação já em andamento. Aguarde ou pause a anterior.")
         else:
-            self.ui_components.mostrar_mensagem(
-                "Caminho inválido ou inacessível. Verifique o caminho e as permissões. Pressione qualquer tecla...",
-                curses.LINES - 3
+            self._display_ui_message(
+                "Caminho inválido ou inacessível. Verifique o caminho e as permissões. Pressione qualquer tecla..."
             )
+
+    def _load_directory_and_play_first_threaded(self, caminho):
+        self.biblioteca.carregar_diretorio(caminho)
+        self.playlist.carregar_diretorio(caminho)
+        if self.playlist.playlist_atual:
+            self.playlist_selecionada = 0
+            self.playlist_offset = 0
+            self._tocar_selecionada_threaded()
+        self._display_ui_message(f"Diretório '{caminho}' carregado! Pressione qualquer tecla...")
 
 
     def abrir_navegador_arquivos(self):
@@ -421,7 +396,7 @@ class UIPlayer:
             min_lines_browser = 10
             min_cols_browser = 40
             if curses.LINES < min_lines_browser or curses.COLS < min_cols_browser:
-                self.ui_components.mostrar_mensagem("Terminal muito pequeno para o navegador de arquivos! Aumente a tela.", curses.LINES - 3)
+                self._display_ui_message("Terminal muito pequeno para o navegador de arquivos! Aumente a tela.")
                 time.sleep(1)
                 break
 
@@ -484,19 +459,19 @@ class UIPlayer:
                         self.stdscr.addstr(display_row, 2, f"  {display_text}")
 
             except (FileNotFoundError, PermissionError) as e:
-                self.ui_components.mostrar_mensagem(f"Erro de acesso: {e}. Voltando para o diretório inicial. Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message(f"Erro de acesso: {e}. Voltando para o diretório inicial. Pressione qualquer tecla...")
                 current_path = os.path.expanduser('~')
                 selected_item_index = 0
                 scroll_offset = 0
                 continue
             except NotADirectoryError:
-                self.ui_components.mostrar_mensagem("Erro: Caminho inválido. Voltando para o diretório inicial. Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message("Erro: Caminho inválido. Voltando para o diretório inicial. Pressione qualquer tecla...")
                 current_path = os.path.expanduser('~')
                 selected_item_index = 0
                 scroll_offset = 0
                 continue
             except curses.error:
-                self.ui_components.mostrar_mensagem("Erro de exibição: Terminal muito pequeno. Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message("Erro de exibição: Terminal muito pequeno. Pressione qualquer tecla...")
                 break
 
             self.stdscr.refresh()
@@ -507,9 +482,9 @@ class UIPlayer:
                 selected_item_index = max(0, selected_item_index - 1)
             elif key == curses.KEY_DOWN:
                 selected_item_index = min(len(items) - 1, selected_item_index + 1)
-            elif key == curses.KEY_ENTER or key == 10 or key == 13: # Enter
+            elif key in (curses.KEY_ENTER, 10, 13): # Enter
                 if not items:
-                    self.ui_components.mostrar_mensagem("Diretório vazio, nada para selecionar. Pressione qualquer tecla...", curses.LINES - 3)
+                    self._display_ui_message("Diretório vazio, nada para selecionar. Pressione qualquer tecla...")
                     continue
 
                 chosen_item_name = items[selected_item_index]
@@ -521,7 +496,7 @@ class UIPlayer:
                         selected_item_index = 0
                         scroll_offset = 0
                     else:
-                        self.ui_components.mostrar_mensagem("Já no diretório raiz. Pressione qualquer tecla...", curses.LINES - 3)
+                        self._display_ui_message("Já no diretório raiz. Pressione qualquer tecla...")
                         continue
 
                 elif chosen_item_name.endswith('/'):
@@ -531,40 +506,49 @@ class UIPlayer:
                         selected_item_index = 0
                         scroll_offset = 0
                     else:
-                        self.ui_components.mostrar_mensagem(f"Não é um diretório válido: {chosen_item_name}. Pressione qualquer tecla...", curses.LINES - 3)
+                        self._display_ui_message(f"Não é um diretório válido: {chosen_item_name}. Pressione qualquer tecla...")
                         continue
                 else:
                     selected_file_path = os.path.join(current_path, chosen_item_name)
 
-                    self.player.carregar_musica(selected_file_path)
-                    self.player.play()
-                    self.historico.adicionar(selected_file_path)
-
-                    self.playlist.carregar_diretorio(current_path)
-
-                    try:
-                        self.playlist_selecionada = self.playlist.playlist_atual.index(selected_file_path)
-                        itens_por_coluna_fixo = 9
-                        self.playlist_offset = self.playlist_selecionada // itens_por_coluna_fixo
-                    except ValueError:
-                        self.playlist_selecionada = 0
-                        self.playlist_offset = 0
-
-                    self.ui_components.mostrar_mensagem(f"Tocando: {chosen_item_name}. Pressione qualquer tecla...", curses.LINES - 3)
+                    if not self.play_music_thread or not self.play_music_thread.is_alive():
+                        self.play_music_thread = threading.Thread(target=self._load_and_play_threaded_from_browser, args=(selected_file_path, current_path))
+                        self.play_music_thread.daemon = True
+                        self.play_music_thread.start()
+                    else:
+                        self._display_ui_message("Já carregando/tocando uma música. Aguarde ou pause a anterior.")
                     break
 
             elif key in (ord('q'), ord('Q'), 27):
                 break
 
-        curses.curs_set(0) # Esconde o cursor novamente
-        self.stdscr.nodelay(True) # Volta ao modo não bloqueante
+        curses.curs_set(0)
+        self.stdscr.nodelay(True)
+
+    def _load_and_play_threaded_from_browser(self, selected_file_path, current_path):
+        self.playlist.carregar_diretorio(current_path)
+        self.player.carregar_musica(selected_file_path)
+        self.player.play()
+        self.historico.adicionar(selected_file_path)
+
+        try:
+            self.playlist_selecionada = self.playlist.playlist_atual.index(selected_file_path)
+            itens_por_coluna_fixo = 9
+            self.playlist_offset = self.playlist_selecionada // itens_por_coluna_fixo
+        except ValueError:
+            self.playlist_selecionada = 0
+            self.playlist_offset = 0
+
+        self._display_ui_message(f"Tocando: {os.path.basename(selected_file_path)}")
+
 
     def listar_playlists(self):
+        self.stdscr.nodelay(False)
         self.stdscr.clear()
         nomes = list(self.playlist.playlists.keys())
         if not nomes:
-            self.ui_components.mostrar_mensagem("Nenhuma playlist encontrada.", 2)
-            # time.sleep(1) # Consider adding a short sleep here for message visibility
+            self._display_ui_message("Nenhuma playlist encontrada.")
+            self.stdscr.nodelay(True)
             return
 
         idx = 0
@@ -595,7 +579,7 @@ class UIPlayer:
                         self.stdscr.addstr(2 + i, 2, display_text)
                 self.stdscr.refresh()
             except curses.error:
-                self.ui_components.mostrar_mensagem("Terminal muito pequeno para listar playlists!", curses.LINES - 3)
+                self._display_ui_message("Terminal muito pequeno para listar playlists!")
                 break
 
             key = self.stdscr.getch()
@@ -606,45 +590,60 @@ class UIPlayer:
             elif key == curses.KEY_DOWN:
                 idx = min(len(nomes) - 1, idx + 1)
             elif key in (curses.KEY_ENTER, 10, 13):
-                self.playlist.playlist_atual = self.playlist.playlists[nomes[idx]].copy()
-                self.playlist_selecionada = 0
-                self.playlist_offset = 0
-                if self.playlist.playlist_atual:
-                    self.player.carregar_musica(self.playlist.playlist_atual[0])
-                    self.player.play()
+                if not self.play_music_thread or not self.play_music_thread.is_alive():
+                    self.play_music_thread = threading.Thread(target=self._load_playlist_and_play_threaded, args=(nomes[idx],))
+                    self.play_music_thread.daemon = True
+                    self.play_music_thread.start()
+                else:
+                    self._display_ui_message("Já carregando/tocando uma música. Aguarde.")
                 break
+        self.stdscr.nodelay(True)
+
+    def _load_playlist_and_play_threaded(self, playlist_name):
+        try:
+            self.playlist.playlist_atual = self.playlist.playlists[playlist_name].copy()
+            self.playlist_selecionada = 0
+            self.playlist_offset = 0
+            if self.playlist.playlist_atual:
+                self.player.carregar_musica(self.playlist.playlist_atual[0])
+                self.player.play()
+                self.historico.adicionar(self.playlist.playlist_atual[0])
+            self._display_ui_message(f"Playlist '{playlist_name}' carregada! Tocando a primeira música.")
+        except Exception as e:
+            self._display_ui_message(f"Erro ao carregar playlist '{playlist_name}': {e}")
+
 
     def criar_playlist(self):
         nome = self.ui_components.solicitar_entrada("Nome da nova playlist: ", curses.LINES - 3)
         if nome:
             if self.playlist.criar_playlist(nome):
-                self.ui_components.mostrar_mensagem(f"Playlist '{nome}' criada! Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message(f"Playlist '{nome}' criada! Pressione qualquer tecla...")
             else:
-                self.ui_components.mostrar_mensagem(f"Playlist '{nome}' já existe! Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message(f"Playlist '{nome}' já existe! Pressione qualquer tecla...")
 
     def adicionar_musica_playlist(self):
         if not self.playlist.playlists:
-            self.ui_components.mostrar_mensagem("Nenhuma playlist criada! Pressione qualquer tecla...", curses.LINES - 3)
+            self._display_ui_message("Nenhuma playlist criada! Pressione qualquer tecla...")
             return
         nome = self.ui_components.solicitar_entrada("Digite o nome da playlist para adicionar: ", curses.LINES - 3)
         if nome not in self.playlist.playlists:
-            self.ui_components.mostrar_mensagem("Playlist não existe! Pressione qualquer tecla...", curses.LINES - 3)
+            self._display_ui_message("Playlist não existe! Pressione qualquer tecla...")
             return
         musica_atual = None
         if self.playlist.playlist_atual and 0 <= self.playlist_selecionada < len(self.playlist.playlist_atual):
             musica_atual = self.playlist.playlist_atual[self.playlist_selecionada]
         if musica_atual:
             if self.playlist.adicionar_na_playlist(nome, musica_atual):
-                self.ui_components.mostrar_mensagem(f"Música '{os.path.basename(musica_atual)}' adicionada à playlist '{nome}'. Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message(f"Música '{os.path.basename(musica_atual)}' adicionada à playlist '{nome}'. Pressione qualquer tecla...")
             else:
-                self.ui_components.mostrar_mensagem("Música já está na playlist! Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message("Música já está na playlist! Pressione qualquer tecla...")
         else:
-            self.ui_components.mostrar_mensagem("Nenhuma música selecionada para adicionar! Pressione qualquer tecla...", curses.LINES - 3)
+            self._display_ui_message("Nenhuma música selecionada para adicionar! Pressione qualquer tecla...")
 
     def remover_musica_playlist(self):
         nome = self.ui_components.solicitar_entrada("Nome da playlist para remover música: ", curses.LINES - 3)
         if nome not in self.playlist.playlists:
-            self.ui_components.mostrar_mensagem("Playlist não existe! Pressione qualquer tecla...", curses.LINES - 3)
+            self._display_ui_message("Playlist não existe! Pressione qualquer tecla...")
             return
         try:
             indice_str = self.ui_components.solicitar_entrada("Índice da música para remover (0-based): ", curses.LINES - 3)
@@ -652,21 +651,20 @@ class UIPlayer:
         except ValueError:
             indice = -1
         if self.playlist.remover_da_playlist(nome, indice):
-            self.ui_components.mostrar_mensagem("Música removida! Pressione qualquer tecla...", curses.LINES - 3)
+            self._display_ui_message("Música removida! Pressione qualquer tecla...")
         else:
-            self.ui_components.mostrar_mensagem("Índice inválido! Pressione qualquer tecla...", curses.LINES - 3)
+            self._display_ui_message("Índice inválido! Pressione qualquer tecla...")
 
     def favoritar_desfavoritar(self):
         if not self.playlist.playlist_atual:
             return
         musica = self.playlist.playlist_atual[self.playlist_selecionada]
-        # Use PlaylistManager's methods for favorites
         if self.playlist.is_favorito(musica):
             self.playlist.remover_favorito(musica)
-            self.ui_components.mostrar_mensagem(f"Música desfavoritada! Pressione qualquer tecla...", curses.LINES - 3)
+            self._display_ui_message(f"Música desfavoritada! Pressione qualquer tecla...")
         else:
             self.playlist.adicionar_favorito(musica)
-            self.ui_components.mostrar_mensagem(f"Música favoritada! Pressione qualquer tecla...", curses.LINES - 3)
+            self._display_ui_message(f"Música favoritada! Pressione qualquer tecla...")
 
     def saltar_para_musica(self):
         try:
@@ -676,9 +674,9 @@ class UIPlayer:
             num = -1
         if 1 <= num <= len(self.playlist.playlist_atual):
             self.playlist_selecionada = num - 1
-            self._tocar_selecionada()
+            self._tocar_selecionada_threaded()
         else:
-            self.ui_components.mostrar_mensagem("Número inválido! Pressione qualquer tecla...", curses.LINES - 3)
+            self._display_ui_message("Número inválido! Pressione qualquer tecla...")
 
     def ordenar_playlist(self):
         self.stdscr.nodelay(False)
@@ -719,18 +717,17 @@ class UIPlayer:
             elif key == ord('6'):
                 self._ordenar_por_metadado('genero')
             elif key == ord('7'):
-                pass # Não há uma "data de adição" fácil para a playlist_atual
+                pass
             else:
-                self.ui_components.mostrar_mensagem("Opção inválida! Pressione qualquer tecla...", curses.LINES - 3)
+                self._display_ui_message("Opção inválida! Pressione qualquer tecla...")
                 self.stdscr.nodelay(True)
                 return
             self.playlist_selecionada = 0
             self.playlist_offset = 0
-            self.ui_components.mostrar_mensagem("Playlist ordenada! Pressione qualquer tecla...", curses.LINES - 3)
-            # Após ordenar a playlist_atual, salve o estado, pois as ordens são mantidas
+            self._display_ui_message("Playlist ordenada! Pressione qualquer tecla...")
             self.playlist.salvar_estado()
         except curses.error:
-            self.ui_components.mostrar_mensagem("Terminal muito pequeno para ordenar!", curses.LINES - 3)
+            self._display_ui_message("Terminal muito pequeno para ordenar!")
 
         self.stdscr.nodelay(True)
 
@@ -738,7 +735,7 @@ class UIPlayer:
         self.playlist.playlist_atual.sort(
             key=lambda x: Musica(x).metadados.get(metadado, '').lower()
         )
-        self.playlist.salvar_estado() # Salva após ordenar a playlist_atual
+        self.playlist.salvar_estado()
 
     def _ordenar_por_duracao(self):
         def get_duracao_da_musica(caminho_musica):
@@ -746,7 +743,7 @@ class UIPlayer:
             return musica_obj.metadados.get('duracao', 0)
 
         self.playlist.playlist_atual.sort(key=get_duracao_da_musica, reverse=True)
-        self.playlist.salvar_estado() # Salva após ordenar a playlist_atual
+        self.playlist.salvar_estado()
 
     def play_pause(self):
         self.player.play_pause()
@@ -756,29 +753,33 @@ class UIPlayer:
 
     def proxima(self):
         if not self.playlist.playlist_atual:
+            self._display_ui_message("Playlist vazia para ir para a próxima.")
             return
         self.playlist_selecionada = (self.playlist_selecionada + 1) % len(self.playlist.playlist_atual)
-        self._tocar_selecionada()
+        self._tocar_selecionada_threaded()
 
     def anterior(self):
         if not self.playlist.playlist_atual:
+            self._display_ui_message("Playlist vazia para ir para a anterior.")
             return
         self.playlist_selecionada = (self.playlist_selecionada - 1 + len(self.playlist.playlist_atual)) % len(self.playlist.playlist_atual)
-        self._tocar_selecionada()
+        self._tocar_selecionada_threaded()
 
-    def _tocar_selecionada(self):
+    def _tocar_selecionada_threaded(self):
         if self.playlist.playlist_atual:
             musica = self.playlist.playlist_atual[self.playlist_selecionada]
             self.player.carregar_musica(musica)
             self.player.play()
-            self.historico.adicionar(musica) # Historico.adicionar() já chama salvar()
+            self.historico.adicionar(musica)
 
-        itens_por_coluna_real = self.ui_components.calcular_itens_por_coluna_playlist()
-        if itens_por_coluna_real > 0:
-            self.playlist_offset = self.playlist_selecionada // itens_por_coluna_real
+            itens_por_coluna_real = self.ui_components.calcular_itens_por_coluna_playlist()
+            if itens_por_coluna_real > 0:
+                self.playlist_offset = self.playlist_selecionada // itens_por_coluna_real
+            else:
+                self.playlist_offset = 0
+            self._display_ui_message(f"Tocando: {os.path.basename(musica)}")
         else:
-            self.playlist_offset = 0
-
+            self._display_ui_message("Nenhuma música na playlist para tocar.")
 
     def aumentar_volume(self):
         vol_novo = min(1.0, self.player.get_volume() + 0.05)
@@ -810,60 +811,56 @@ class UIPlayer:
                     break
                 time.sleep(0.1)
         except curses.error:
-            self.ui_components.mostrar_mensagem("Terminal muito pequeno para histórico!", curses.LINES - 3)
+            self._display_ui_message("Terminal muito pequeno para histórico!")
             time.sleep(1)
 
     def abrir_radio(self):
-
-        musica_carregada = self.player.get_nome()
-        tocando = False
-        if musica_carregada:
-            tocando = self.player.is_playing()
-
-        if musica_carregada and tocando:
+        # Verifica se há uma música tocando e a pausa
+        # Definimos musica_pausada_para_radio no início, ANTES de qualquer subprocessamento
+        self.musica_pausada_para_radio = False
+        if self.player.get_nome() and self.player.is_playing():
             try:
-                self.player.pause()
+                self.player.pause() # Chama o método pause do AudioPlayer
+                # Uma pequena pausa pode ajudar a garantir que o mixer processe a pausa
+                time.sleep(0.1)
                 self.musica_pausada_para_radio = True
-            except Exception:
+            except Exception as e:
+                # print(f"Erro ao pausar música para o rádio: {e}") # Para depuração
                 self.musica_pausada_para_radio = False
-        else:
-            self.musica_pausada_para_radio = False
 
-        curses.endwin()
+        # Define a flag para indicar que o rádio está ativo, bloqueando o avanço automático da música
+        self.radio_ativo = True
+        curses.endwin() # Desativa o modo curses
 
-        radio_dir = os.path.join(os.path.dirname(__file__), '..', 'radio_terminal')
+        radio_dir = os.path.join(os.path.dirname(__file__), '..','..', 'radio_terminal')
         radio_script = os.path.join(radio_dir, 'radio.py')
 
-        if os.name == 'nt':
-            command = ['cmd.exe', '/c', 'start', '/wait', 'cmd', '/c', 'python', radio_script]
-            try:
-                subprocess.run(command, cwd=radio_dir, check=True)
-            except subprocess.CalledProcessError as e:
-                self.ui_components.mostrar_mensagem(f"Erro ao iniciar rádio no Windows: {e}", curses.LINES - 3)
-                time.sleep(2)
-            except FileNotFoundError as e:
-                self.ui_components.mostrar_mensagem(
-                    f"Erro: 'cmd.exe' ou 'python' não encontrados. Verifique a instalação. {e}",
-                    curses.LINES - 3
-                )
-                time.sleep(2)
-        else:
-            terminal_emulator_found = False
-            for term_cmd in ['x-terminal-emulator', 'gnome-terminal', 'konsole', 'xterm']:
-                try:
-                    subprocess.run([term_cmd, '-e', f'python3 {radio_script}'], check=True, cwd=radio_dir)
-                    terminal_emulator_found = True
-                    break
-                except FileNotFoundError:
-                    continue
-                except subprocess.CalledProcessError as e:
-                    self.ui_components.mostrar_mensagem(f"Erro ao iniciar rádio com {term_cmd}: {e}", curses.LINES - 3)
+        try:
+            if os.name == 'nt':
+                # Use 'start /wait' para o Windows, para que o Python espere o terminal fechar.
+                # Isso é crucial para que o fluxo de execução retorne corretamente.
+                command = f'start "Rádio Terminal" /wait cmd /c python "{radio_script}"'
+                subprocess.run(command, cwd=radio_dir, shell=True,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                terminal_emulator_found = False
+                for term_cmd in ['x-terminal-emulator', 'gnome-terminal', 'konsole', 'xterm']:
+                    try:
+                        # Use subprocess.run() sem daemon=True e aguardando a conclusão
+                        subprocess.run([term_cmd, '-e', f'python3 {radio_script}'],
+                                         cwd=radio_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        terminal_emulator_found = True
+                        break
+                    except FileNotFoundError:
+                        continue
+                if not terminal_emulator_found:
+                    self._display_ui_message("Nenhum emulador de terminal compatível encontrado.")
                     time.sleep(2)
-                    continue
-            if not terminal_emulator_found:
-                self.ui_components.mostrar_mensagem("Nenhum emulador de terminal compatível encontrado (xterm, gnome-terminal, konsole).", curses.LINES - 3)
-                time.sleep(2)
+        except Exception as e:
+            self._display_ui_message(f"Erro ao iniciar rádio: {e}")
+            time.sleep(2)
 
+        # Re-inicializa o curses após o rádio fechar ou perder o foco do terminal
         self.stdscr = curses.initscr()
         curses.noecho()
         curses.cbreak()
@@ -873,10 +870,17 @@ class UIPlayer:
         self.stdscr.clear()
         self.stdscr.refresh()
 
-        if musica_carregada and self.musica_pausada_para_radio:
+        # Reseta a flag do rádio para permitir que a lógica normal de reprodução continue
+        self.radio_ativo = False
+
+        # Se a música foi pausada para o rádio, tenta retomar
+        if self.musica_pausada_para_radio:
             try:
-                self.player.resume()
-            except Exception:
+                self.player.resume() # Retoma a música pausada
+                # Pode ser útil adicionar um pequeno atraso aqui também
+                time.sleep(0.1)
+            except Exception as e:
+                # print(f"Erro ao resumir música após rádio: {e}") # Para depuração
                 pass
             self.musica_pausada_para_radio = False
 
@@ -925,7 +929,8 @@ class UIPlayer:
 
         largura_playlist = curses.COLS - 4
 
-        tocando = self.player.get_nome() and self.player.get_progresso() > 0 and self.player.is_playing()
+        # O espectro deve continuar "decaindo" mesmo se pausado
+        tocando = self.player.get_nome() and self.player.is_playing()
 
         num_barras_player = espectro_largura // 2
         if not hasattr(self, 'espectro_atual') or len(self.espectro_atual) != num_barras_player:
@@ -942,7 +947,7 @@ class UIPlayer:
                     else:
                         alpha = 0.5
                     self.espectro_atual[i] = alpha * novo + (1 - alpha) * atual
-            except Exception:
+            except Exception: # Em caso de erro ao obter espectro, ainda suavizar
                 self.espectro_atual = [max(0, v * 0.75) for v in self.espectro_atual]
         else:
             self.espectro_atual = [max(0, v * 0.75) for v in self.espectro_atual]
@@ -954,16 +959,15 @@ class UIPlayer:
             largura=espectro_largura,
             altura=espectro_altura
         )
-        # Pass self.playlist.favoritos to draw_playlist
         self.ui_components.desenhar_playlist(
             self.playlist.playlist_atual,
             self.playlist_selecionada,
             self.playlist_offset,
-            self.playlist.favoritos, # Usa a lista de favoritos do PlaylistManager
+            self.playlist.favoritos,
             y=playlist_y, x=2, altura=altura_playlist, largura=largura_playlist
         )
 
-        cpu_usage, ram_usage = uso_recursos() # Assumindo que uso_recursos vem de ui_utils ou utils.py
+        cpu_usage, ram_usage = uso_recursos()
         self.ui_components.desenhar_recursos(cpu_usage, ram_usage, y=recursos_y, x=2)
         self.ui_components.desenhar_volume(self.volume, y=volume_y, x=2)
         self.ui_components.desenhar_status(
@@ -972,6 +976,13 @@ class UIPlayer:
             self.player.get_duracao(),
             y=status_y, x=2
         )
+
+        try:
+            message = self.ui_message_queue.get_nowait()
+            self.ui_components.mostrar_mensagem(message, curses.LINES - 3)
+        except queue.Empty:
+            pass
+
         self.ui_components.desenhar_menu_inferior(menu_y, 2)
         self.stdscr.refresh()
 
@@ -979,12 +990,17 @@ class UIPlayer:
         while self.executando:
             self.player.check_events()
 
+            # Apenas avança a música se o rádio não estiver ativo
+            # E se o player não estiver tocando (terminou a música) E não estiver explicitamente pausado
+            # E garantir que a musica_pausada_para_radio não está ativada.
             if (not self.radio_ativo and
                 not self.player.is_playing() and
                 self.player.get_duracao() > 0 and
                 (self.player.get_progresso() >= self.player.get_duracao() - 0.1) and
-                not getattr(self.player, 'pausado', False)):
+                not self.player.pausado and
+                not self.musica_pausada_para_radio): # Adicionamos esta condição
                 self.proxima()
+
 
             current_lines = curses.LINES
             current_cols = curses.COLS
@@ -1000,10 +1016,7 @@ class UIPlayer:
             self.config_manager.set('volume', self.volume)
             self.config_manager.set('equalizacao', self.equalizacao)
             self.config_manager.set('modo_visualizacao', self.modo_visualizacao)
-            # Os managers agora salvam seus próprios estados quando são modificados
-            # Mas um salvamento final pode ser útil ao sair
-            self.playlist.salvar_estado() # Salva o estado da playlist e favoritos
-            # self.historico.salvar() # Historico.adicionar() já chama salvar(). Se quiser salvar no loop, chame aqui.
+            self.playlist.salvar_estado()
 
             try:
                 key = self.stdscr.getch()
@@ -1102,8 +1115,27 @@ class UIPlayer:
                 self.ordenar_playlist()
             elif key in (ord('1'), ):
                 self.abrir_diretorio()
-            elif key in (ord('2'), ):
+            elif key == ord('2'):
                 self.play_pause()
+            elif key in (curses.KEY_ENTER, 10, 13):
+                if self.playlist.playlist_atual:
+                    musica_selecionada_caminho = self.playlist.playlist_atual[self.playlist_selecionada]
+                    musica_tocando_caminho = self.player.musica_atual
+
+                    is_currently_loaded_and_selected = False
+                    if musica_tocando_caminho:
+                        try:
+                            is_currently_loaded_and_selected = os.path.abspath(musica_selecionada_caminho) == os.path.abspath(musica_tocando_caminho)
+                        except Exception:
+                            is_currently_loaded_and_selected = False
+
+                    if is_currently_loaded_and_selected:
+                        self.play_pause()
+                    else:
+                        self._tocar_selecionada_threaded()
+                else:
+                    self.play_pause()
+
             elif key in (ord('3'), ):
                 self.anterior()
             elif key in (ord('4'), ):
@@ -1120,7 +1152,5 @@ class UIPlayer:
                 self.controlar_equalizacao()
             elif key in (ord('x'), ord('X')):
                 self.mostrar_estatisticas()
-            elif key in (curses.KEY_ENTER, 10, 13):
-                self._tocar_selecionada()
 
             time.sleep(0.02)
