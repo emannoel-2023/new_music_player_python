@@ -82,10 +82,10 @@ soundwave/
 │   ├── estado_player.json # Estado do player e playlists salvas [cite: 7]
 │   ├── favoritos.json     # Lista de favoritos [cite: 7]
 │   └── historico.json     # Histórico de reprodução [cite: 278]
-├── radio_terminal/ [cite: 374]
+├── radio_terminal/
 │   ├── radio.py           # Aplicativo de rádio integrado [cite: 284]
 │   └── ...                # Outros arquivos do rádio (e.g., radios.txt) [cite: 330]
-├── src/ [cite: 374]
+├── src/
 │   ├── audio.py           # Player de áudio e espectro [cite: 33]
 │   ├── biblioteca.py      # Gerenciamento da biblioteca musical [cite: 21, 28]
 │   ├── comandos.py        # Interpretação e execução de comandos [cite: 14]
@@ -94,12 +94,12 @@ soundwave/
 │   ├── playlist.py        # Gerenciamento de playlists e favoritos [cite: 2, 3]
 │   ├── recursos.py        # Monitoramento CPU/RAM do processo (deprecated, use ui_utils) [cite: 2]
 │   ├── utils.py           # Funções auxiliares (formatar_tempo) [cite: 1, 100]
-│   └── ui/ [cite: 374]
+│   └── ui/
 │       ├── ui_components.py # Componentes visuais da UI [cite: 72]
 │       ├── ui_core.py       # Lógica principal da UI e interação [cite: 121]
 │       ├── ui_state.py      # Carregamento/salvamento de estado da UI [cite: 277]
 │       └── ui_utils.py      # Funções utilitárias da UI (inicia cores, uso_recursos) [cite: 282, 283]
-├── testes/ [cite: 374]
+├── testes/
 │   ├── test_audio.py
 │   ├── test_biblioteca.py
 │   └── test_playlist.py
