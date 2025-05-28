@@ -1,13 +1,12 @@
 soundwave/
 │
-├── data/
-│   ├── estado_player.json
-│   ├── favoritos.json
-│   └── historico.json
 ├── radio_terminal(bonus)/
 ├── src/
 │   ├── __pycache__/
 │   ├── data/
+│       ├── estado_player.json
+│       ├── favoritos.json
+│       └── historico.json
 │   ├── ui/
 │   │   ├── __pycache__/
 │   │   ├── __init__.py
