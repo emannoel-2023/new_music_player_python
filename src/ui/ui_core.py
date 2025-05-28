@@ -81,6 +81,8 @@ class UIPlayer:
             if not self.radio_ativo: # Apenas avança se não estiver no modo rádio
                 self.proxima()
     
+
+    
     def buscar_musicas(self):
         self.stdscr.nodelay(False)
         termo = self.ui_components.solicitar_entrada("Digite o termo de busca: ", curses.LINES - 3)
@@ -511,6 +513,90 @@ class UIPlayer:
                 break
             time.sleep(0.1)
 
+    def abrir_radio(self):
+        """
+        Starts the radio player in a separate terminal process.
+        Properly manages curses terminal state before and after launching the radio.
+        Temporarily stops the audio player if it's active.
+        """
+        # Store current music state if needed to resume later
+        musica_carregada = self.player.get_nome()
+        tocando = False
+        if musica_carregada:
+            tocando = self.player.is_playing()
+
+        if musica_carregada and tocando:
+            try:
+                # Altera de parar() para pause() para manter o progresso da música
+                self.player.pause()  # MODIFICAÇÃO CHAVE AQUI
+                self.musica_pausada_para_radio = True
+            except Exception:
+                self.musica_pausada_para_radio = False
+        else:
+            self.musica_pausada_para_radio = False
+
+        # END Curses mode before launching external process
+        curses.endwin()
+
+        # Corrigir o caminho para radio_terminal
+        radio_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'radio_terminal') # Subir dois níveis
+        radio_script = os.path.join(radio_dir, 'radio.py')
+
+        # Use subprocess.run for simpler handling, and specify shell=True for 'start' on Windows
+        # Use a more robust way to open a new terminal
+        if os.name == 'nt':  # Windows
+            command = ['cmd.exe', '/c', 'start', '/wait', 'cmd', '/c', 'python', radio_script]
+        else:  # Linux/macOS
+            # Para Linux, você pode precisar de um emulador de terminal como 'xterm', 'gnome-terminal', 'konsole'
+            # Esta é uma maneira comum, mas os usuários podem precisar de uma configuração de terminal específica
+            command = ['xterm', '-e', 'python3', radio_script] 
+            # Ou: ['gnome-terminal', '--', 'python3', radio_script]
+            # Ou: ['konsole', '-e', 'python3', radio_script]
+            # Fallback para execução simples de python se nenhum emulador de terminal específico for desejado/configurado
+            # Isso pode rodar na mesma janela, mas respeita curses.endwin()
+            # command = ['python3', radio_script] 
+
+        try:
+            # Executa o script de rádio em um novo terminal, aguardando a conclusão
+            subprocess.run(command, cwd=radio_dir)
+        except FileNotFoundError as e:
+            # Lida com casos em que 'xterm' ou 'gnome-terminal' etc. podem não ser encontrados
+            self.ui_components.mostrar_mensagem(
+                f"Erro: Emulador de terminal não encontrado ou script radio.py. Verifique sua instalação. {e}", 
+                curses.LINES - 3
+            )
+            # Você pode querer fornecer um fallback ou apenas sair graciosamente aqui
+            time.sleep(2) # Dá tempo para o usuário ler o erro
+            # Re-initialize curses regardless
+        except Exception as e:
+            self.ui_components.mostrar_mensagem(f"Erro inesperado ao iniciar rádio: {e}", curses.LINES - 3)
+            time.sleep(2) # Dá tempo para o usuário ler o erro
+
+
+        # RE-INITIALIZE Curses mode after external process finishes
+        self.stdscr = curses.initscr()
+        curses.noecho()
+        curses.cbreak()
+        self.stdscr.keypad(True)
+        curses.curs_set(0) # Hide cursor
+        init_cores() # Re-initialize colors
+        self.stdscr.clear() # Clear the screen
+        self.stdscr.refresh() # Refresh to show a clean screen
+
+        # Resume original music if it was paused
+        if musica_carregada and self.musica_pausada_para_radio:
+            try:
+                # Altera de play() para resume()
+                self.player.resume() # MODIFICAÇÃO CHAVE AQUI
+            except Exception:
+                pass
+            self.musica_pausada_para_radio = False
+
+        # Ensure nodelay is set back to True for the main loop's non-blocking input
+        self.stdscr.nodelay(True)
+        # You might also want to explicitly refresh the main interface
+        # self.draw_interface() # This will be called by the main loop anyway
+
     def draw_interface(self):
         """Desenha todos os componentes da interface na tela."""
         self.stdscr.clear()
@@ -526,7 +612,9 @@ class UIPlayer:
         #largura_disponivel = curses.COLS - (espectro_x * 2) 
         #espectro_largura = min(largura_disponivel, 76) # Removido o 76 fixo para usar o disponível
         
-        tocando = self.player.get_nome() and self.player.get_progresso() > 0 and not getattr(self.player, 'pausado', False)
+        # Certifique-se de que self.player.pausado existe e é confiável
+        # ou, alternativamente, confie apenas no is_playing()
+        tocando = self.player.get_nome() and self.player.get_progresso() > 0 and self.player.is_playing()
         if tocando:
             try:
                 num_barras_player = espectro_largura // 2
@@ -619,7 +707,11 @@ class UIPlayer:
             
             # Uma verificação extra para garantir que o player não está tocando
             # e não está pausado, o que indicaria que a música terminou.
-            if not self.radio_ativo and not self.player.is_playing() and self.player.get_duracao() > 0 and self.player.get_progresso() >= self.player.get_duracao():
+            if (not self.radio_ativo and 
+                not self.player.is_playing() and 
+                self.player.get_duracao() > 0 and 
+                (self.player.get_progresso() >= self.player.get_duracao() - 0.1) and # Adiciona uma pequena margem de erro
+                not getattr(self.player, 'pausado', False)): # Verifica se o player está explicitamente pausado
                 self.proxima()
 
             self.draw_interface() # Agora a interface é desenhada por um método centralizado
@@ -668,8 +760,7 @@ class UIPlayer:
             elif key in (ord('q'), ord('Q')):
                 self.executando = False
             elif key in (ord('r'), ord('R')):
-                # self.abrir_radio() # Método não fornecido, mantido comentado
-                pass
+                self.abrir_radio() # Chama o método abrir_radio
             elif key in (ord('h'), ord('H')):
                 self.mostrar_historico()
             elif key in (ord('l'), ord('L')):

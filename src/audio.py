@@ -114,35 +114,49 @@ class AudioPlayer:
             self.duracao = 0 # Em caso de erro, define como 0
 
     def play(self):
-        """Inicia a reprodução da música carregada."""
+        """Inicia a reprodução da música carregada. Se estiver pausada, despausa. Se não estiver tocando, inicia."""
         with self.lock:
             if self.musica_atual:
-                if not pygame.mixer.music.get_busy() or self.pausado:
+                if self.pausado: # Se está pausado, despausa
+                    pygame.mixer.music.unpause()
+                    self.pausado = False
+                    self.notify('unpause')
+                elif not pygame.mixer.music.get_busy(): # Se não está tocando, inicia
                     pygame.mixer.music.play()
                     self.tempo_inicio = time.time()
                     self.pausado = False
-                    self.notify('play') # Notificar um evento 'play'
+                    self.notify('play')
             else:
                 print("Nenhuma música carregada para tocar.")
 
     def play_pause(self):
         with self.lock:
-            if self.musica_atual: # Garante que há uma música carregada
+            if self.musica_atual:
                 if pygame.mixer.music.get_busy() and not self.pausado:
-                    pygame.mixer.music.pause()
-                    self.pausado = True
-                    self.notify('pause') # Notificar um evento 'pause'
+                    self.pause() # Chama o novo método pause
                 elif self.pausado:
-                    pygame.mixer.music.unpause()
-                    self.pausado = False
-                    self.notify('unpause') # Notificar um evento 'unpause'
+                    self.resume() # Chama o novo método resume
                 elif not pygame.mixer.music.get_busy() and not self.pausado:
                     # Se não está tocando e não está pausado (pode ter sido parado ou recém carregado)
                     # Chamar play() para iniciar do zero.
-                    self.play() # Reutiliza o método play
-                self.notify('play_pause') # Este evento pode ser mais genérico
-            else:
-                print("Nenhuma música carregada para play/pause.")
+                    self.play() 
+                self.notify('play_pause')
+
+    def pause(self): # Método explícito para pausar
+        with self.lock:
+            if pygame.mixer.music.get_busy() and not self.pausado:
+                pygame.mixer.music.pause()
+                self.pausado = True
+                self.notify('pause')
+
+    def resume(self): # Método explícito para resumir
+        with self.lock:
+            if self.pausado:
+                pygame.mixer.music.unpause()
+                self.pausado = False
+                self.notify('unpause')
+            # Se não estava pausado, não faz nada ou inicia do zero se a intenção for essa
+            # A lógica atual do play() já lida com iniciar se não estiver tocando.
 
     def parar(self):
         with self.lock:
@@ -168,16 +182,13 @@ class AudioPlayer:
         if not self.musica_atual:
             return 0
         
-        # Pygame.mixer.music.get_pos() retorna o tempo desde o início da reprodução atual (em ms)
-        # Se a música foi pausada e despausada, ele continua de onde parou.
-        # Se foi parado e depois play, ele reinicia do 0.
         pos_ms = pygame.mixer.music.get_pos()
-        if pos_ms == -1: # Retorna -1 se não houver música carregada ou tocando
+        if pos_ms == -1: 
             return 0
-        return pos_ms / 1000.0 # Converte para segundos
+        return pos_ms / 1000.0 
 
     def get_duracao(self):
-        return self.duracao # Retorna a duração obtida por mutagen
+        return self.duracao 
 
     def get_nome(self):
         if not self.musica_atual:
@@ -192,12 +203,9 @@ class AudioPlayer:
         if self._audio_segment is None:
             return None
         
-        # O progresso do pygame.mixer.music é mais preciso para a posição atual
         progresso_segundos = self.get_progresso()
         ms_pos = int(progresso_segundos * 1000)
 
-        # Determina o segmento para extrair samples
-        # Pega um segmento um pouco antes da posição atual para análise
         sample_length_ms = int(1000 * num_samples / self._audio_segment.frame_rate)
         start_ms = max(0, ms_pos - sample_length_ms)
         end_ms = ms_pos
@@ -211,13 +219,11 @@ class AudioPlayer:
         arr = np.array(samples).astype(np.float32)
         
         if self._audio_segment.channels > 1:
-            arr = arr[::self._audio_segment.channels]  # Pega só um canal
+            arr = arr[::self._audio_segment.channels] 
         
-        # Garante que o array tenha o tamanho esperado
         if len(arr) > num_samples:
-            arr = arr[-num_samples:] # Pega os últimos num_samples
+            arr = arr[-num_samples:] 
         elif len(arr) < num_samples:
-            # Preenche com zeros se não houver samples suficientes (ex: início da música)
             arr = np.pad(arr, (num_samples - len(arr), 0))
             
         return arr
@@ -226,59 +232,46 @@ class AudioPlayer:
         try:
             samples = self.get_audio_samples(4096)
             if samples is not None and len(samples) > 0:
-                # Aplica janela Hanning
                 window = np.hanning(len(samples))
                 windowed_samples = samples * window
                 
-                # FFT
                 fft = np.abs(np.fft.rfft(windowed_samples))
                 
-                # Frequências
-                freqs = np.fft.rfftfreq(len(samples), 1/44100) # Assumindo 44.1kHz
+                freqs = np.fft.rfftfreq(len(samples), 1/44100) 
                 
-                # Agrupa em bandas (logarítmico para melhor representação de áudio)
-                # O número de barras é a entrada para o _get_spectrum_bands
                 barras = self._get_spectrum_bands(fft, freqs, num_barras)
                 
-                # Reset periódico para evitar lentidão acumulada
                 self._reset_counter += 1
-                if self._reset_counter > 200:  # Reset a cada ~6-7 segundos
+                if self._reset_counter > 200:  
                     self._espectro_max = 1.0
                     self._espectro_anterior = None
                     self._reset_counter = 0
                 
-                # Inicializa _espectro_anterior se não existir
                 if self._espectro_anterior is None or len(self._espectro_anterior) != num_barras:
                     self._espectro_anterior = np.zeros(num_barras)
                 
-                # Suavização para barras (média móvel simples)
-                alpha_suavizacao = 0.6 # Reduzido para maior responsividade
+                alpha_suavizacao = 0.6 
                 barras_suavizadas = alpha_suavizacao * barras + (1 - alpha_suavizacao) * self._espectro_anterior
                 self._espectro_anterior = barras_suavizadas.copy()
                 
-                # Normalização adaptativa
                 current_max = np.max(barras_suavizadas)
-                # Ajusta o _espectro_max de forma adaptativa
                 if current_max > self._espectro_max:
                     self._espectro_max = current_max
                 else:
-                    self._espectro_max *= 0.98 # Reduz lentamente se não houver picos
+                    self._espectro_max *= 0.98 
                 
-                # Evita divisão por zero
                 if self._espectro_max > 0:
                     barras_norm = barras_suavizadas / self._espectro_max
                 else:
                     barras_norm = barras_suavizadas
                 
-                # Compressão suave (power law) para realçar sons mais baixos
-                barras_final = np.power(np.clip(barras_norm, 0, 1), 0.5) # 0.5 para maior realce dos baixos
+                barras_final = np.power(np.clip(barras_norm, 0, 1), 0.5) 
                 
-                # Scaling para altura de exibição (ex: 6 linhas de altura)
                 barras_final = barras_final * 6
                 
-                return barras_final.tolist() # Retorna como lista
+                return barras_final.tolist() 
             else:
-                return [0] * num_barras # Retorna array de zeros se não há samples
+                return [0] * num_barras 
                 
         except Exception as e:
             print(f"Erro no espectro: {e}")
@@ -292,15 +285,13 @@ class AudioPlayer:
         if num_bands == 0:
             return np.array([])
 
-        min_freq = 20     # Frequência mínima (Hz)
-        max_freq = 20000  # Frequência máxima (Hz)
+        min_freq = 20     
+        max_freq = 20000  
         
-        # Garante que as frequências estejam dentro do limite da FFT
         freq_indices = np.where((freqs >= min_freq) & (freqs <= max_freq))[0]
         if len(freq_indices) == 0:
             return np.zeros(num_bands)
 
-        # Cria bandas de frequência em escala logarítmica
         log_min_freq = np.log10(min_freq)
         log_max_freq = np.log10(max_freq)
         log_steps = np.log10(np.linspace(10**log_min_freq, 10**log_max_freq, num_bands + 1))
@@ -311,22 +302,17 @@ class AudioPlayer:
             f_low = 10**log_steps[i]
             f_high = 10**log_steps[i+1]
             
-            # Índices de frequência para a banda atual
             band_freq_indices = np.where((freqs >= f_low) & (freqs < f_high))[0]
             
             if len(band_freq_indices) > 0:
-                # Soma as magnitudes das frequências dentro da banda
-                # Ou usa a média, dependendo do efeito desejado
                 bands_output[i] = np.sum(fft_data[band_freq_indices])
             else:
                 bands_output[i] = 0
         
-        # Amplificação de bandas específicas (ajuste conforme a necessidade)
-        # Ex: Amplificar as bandas que correspondem a voz (250Hz - 4kHz)
         for i in range(num_bands):
             f_center = 10**((log_steps[i] + log_steps[i+1])/2)
             if 250 <= f_center <= 4000:
-                bands_output[i] *= 1.5 # Exemplo de amplificação
+                bands_output[i] *= 1.5 
         
         return bands_output
 
@@ -343,19 +329,9 @@ class AudioPlayer:
         """
         for event in pygame.event.get():
             if event.type == self.EVENTO_FIM_MUSICA:
-                # print("Música terminada (evento detectado).") # Para depuração
                 self.notify('musica_terminada')
-                # Reseta o estado da música para o próximo ciclo
-                # self.musica_atual = None # Não resetar aqui, pois a UI precisa saber qual música terminou
                 self.pausado = False
-                # Você pode querer parar explicitamente o mixer se ele não parar sozinho,
-                # mas o endevent geralmente indica que já parou.
-                # pygame.mixer.music.stop() 
-
+                
     def set_equalizacao(self, grave, medio, agudo):
         self.equalizacao = {'grave': grave, 'medio': medio, 'agudo': agudo}
-        # Equalização real (aplicada aos dados de áudio) é complexa e exige processamento de sinal.
-        # Aqui, estamos apenas armazenando os valores.
-        # Se você deseja aplicar equalização real, terá que pré-processar o _audio_segment
-        # antes de enviá-lo para o mixer ou usar uma biblioteca de áudio que suporte isso.
         self.notify('equalizacao')
