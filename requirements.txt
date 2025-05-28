@@ -3,6 +3,6 @@ numpy
 psutil
 windows-curses
 pyfiglet
-pyaudio
 requests
-psutil
+pydub
+mutagen

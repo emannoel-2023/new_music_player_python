@@ -1,17 +1,34 @@
 soundwave/
 │
-├── audio.py
-├── biblioteca.py
-├── comandos.py
-├── historico.py
-├── main.py
-├── playlist.py
-├── recursos.py
+├── data/
+│   ├── estado_player.json
+│   ├── favoritos.json
+│   └── historico.json
+├── radio_terminal(bonus)/
+├── src/
+│   ├── __pycache__/
+│   ├── data/
+│   ├── ui/
+│   │   ├── __pycache__/
+│   │   ├── __init__.py
+│   │   ├── ui_components.py
+│   │   ├── ui_core.py
+│   │   ├── ui_state.py
+│   │   └── ui_utils.py
+│   ├── __init__.py
+│   ├── audio.py
+│   ├── biblioteca.py
+│   ├── comandos.py
+│   ├── config_manager.py
+│   ├── historico.py
+│   ├── playlist.py
+│   ├── recursos.py
+│   └── utils.py
 ├── testes/
-│   ├── test_audio.py
-│   ├── test_biblioteca.py
-│   └── test_playlist.py
-├── ui.py
-├── utils.py
+│   ├── test_audio.py
+│   ├── test_biblioteca.py
+│   └── test_playlist.py
+├── estrutura.txt
+├── main.py
 ├── requirements.txt
 └── README.md

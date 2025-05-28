@@ -5,15 +5,13 @@ import time
 import math
 import threading
 from pydub import AudioSegment
-# Importe mutagen para obter a duração real da música
 try:
     from mutagen.mp3 import MP3
     from mutagen.wave import WAVE
     from mutagen.flac import FLAC
-    # Adicione outros formatos se necessário (e.g., Ogg for .ogg, etc.)
 except ImportError:
     print("Mutagen não encontrado. A duração das músicas pode ser imprecisa para alguns formatos.")
-    MP3 = WAVE = FLAC = None # Define como None se não estiver disponível
+    MP3 = WAVE = FLAC = None
 
 class AudioPlayer:
     _instance = None
@@ -29,10 +27,10 @@ class AudioPlayer:
         pygame.mixer.init(frequency=44100)
         self.musica_atual = None
         self.pausado = False
-        self._espectro_max = 1.0  # máximo histórico para normalização adaptativa
+        self._espectro_max = 1.0
         self.volume = 0.5
         self.tempo_inicio = 0
-        self.duracao = 0 # Duração da música em segundos (obtida por mutagen)
+        self.duracao = 0
         self.lock = threading.Lock()
         self.observers = []
         self.equalizacao = {'grave': 0, 'medio': 0, 'agudo': 0}
@@ -41,9 +39,7 @@ class AudioPlayer:
         pygame.mixer.music.set_endevent(self.EVENTO_FIM_MUSICA)
         pygame.mixer.music.set_volume(self.volume)
         self.inicializado = True
-        self._audio_segment = None  # Para cache do AudioSegment
-        
-        # Inicializar variáveis do espectro
+        self._audio_segment = None
         self._espectro_anterior = None
         self._espectro_max = 1.0
         self._reset_counter = 0
@@ -64,16 +60,14 @@ class AudioPlayer:
                     self.tempo_inicio = time.time()
                     self.pausado = False
                     
-                    self._get_and_set_duration(caminho) # Obtém a duração usando mutagen ou similar
+                    self._get_and_set_duration(caminho)
                     
-                    # Carrega o AudioSegment para espectro
                     try:
                         self._audio_segment = AudioSegment.from_file(caminho)
                     except Exception as e:
                         print("Erro ao carregar AudioSegment (para espectro):", e)
                         self._audio_segment = None
                     
-                    # Reset das variáveis do espectro ao carregar nova música
                     self._espectro_anterior = None
                     self._espectro_max = 1.0
                     self._reset_counter = 0
@@ -88,7 +82,7 @@ class AudioPlayer:
 
     def _get_and_set_duration(self, caminho):
         """Tenta obter a duração da música usando mutagen."""
-        self.duracao = 0 # Reseta a duração
+        self.duracao = 0
         try:
             if caminho.lower().endswith('.mp3') and MP3:
                 audio = MP3(caminho)
@@ -99,29 +93,25 @@ class AudioPlayer:
             elif caminho.lower().endswith('.flac') and FLAC:
                 audio = FLAC(caminho)
                 self.duracao = audio.info.length
-            # Adicione outros formatos que você quer suportar com mutagen
             else:
-                # Fallback se mutagen não pode ler ou formato não é explicitamente tratado
-                # Aqui você pode tentar uma estimativa ou deixar como 0
                 print(f"Formato de áudio para {caminho} não suportado por mutagen ou não especificado. Duração pode ser imprecisa.")
-                # Se não puder obter a duração exata, uma alternativa é tentar usar pydub para isso
                 if self._audio_segment:
                     self.duracao = len(self._audio_segment) / 1000.0
                 else:
-                    self.duracao = 0 # Duração desconhecida
+                    self.duracao = 0
         except Exception as e:
             print(f"Erro ao obter duração da música {caminho} com mutagen: {e}")
-            self.duracao = 0 # Em caso de erro, define como 0
+            self.duracao = 0
 
     def play(self):
         """Inicia a reprodução da música carregada. Se estiver pausada, despausa. Se não estiver tocando, inicia."""
         with self.lock:
             if self.musica_atual:
-                if self.pausado: # Se está pausado, despausa
+                if self.pausado:
                     pygame.mixer.music.unpause()
                     self.pausado = False
                     self.notify('unpause')
-                elif not pygame.mixer.music.get_busy(): # Se não está tocando, inicia
+                elif not pygame.mixer.music.get_busy():
                     pygame.mixer.music.play()
                     self.tempo_inicio = time.time()
                     self.pausado = False
@@ -133,36 +123,31 @@ class AudioPlayer:
         with self.lock:
             if self.musica_atual:
                 if pygame.mixer.music.get_busy() and not self.pausado:
-                    self.pause() # Chama o novo método pause
+                    self.pause()
                 elif self.pausado:
-                    self.resume() # Chama o novo método resume
+                    self.resume()
                 elif not pygame.mixer.music.get_busy() and not self.pausado:
-                    # Se não está tocando e não está pausado (pode ter sido parado ou recém carregado)
-                    # Chamar play() para iniciar do zero.
                     self.play() 
                 self.notify('play_pause')
 
-    def pause(self): # Método explícito para pausar
+    def pause(self):
         with self.lock:
             if pygame.mixer.music.get_busy() and not self.pausado:
                 pygame.mixer.music.pause()
                 self.pausado = True
                 self.notify('pause')
 
-    def resume(self): # Método explícito para resumir
+    def resume(self):
         with self.lock:
             if self.pausado:
                 pygame.mixer.music.unpause()
                 self.pausado = False
                 self.notify('unpause')
-            # Se não estava pausado, não faz nada ou inicia do zero se a intenção for essa
-            # A lógica atual do play() já lida com iniciar se não estiver tocando.
 
     def parar(self):
         with self.lock:
             pygame.mixer.music.stop()
             self.pausado = False
-            # Reset das variáveis do espectro ao parar
             self._espectro_anterior = None
             self._espectro_max = 1.0
             self._reset_counter = 0
@@ -196,10 +181,6 @@ class AudioPlayer:
         return os.path.basename(self.musica_atual)
 
     def get_audio_samples(self, num_samples=2048):
-        """
-        Retorna um array numpy de samples do ponto atual da música, para FFT do espectro.
-        Suporta qualquer formato de áudio lido pelo pydub/ffmpeg.
-        """
         if self._audio_segment is None:
             return None
         
@@ -278,10 +259,6 @@ class AudioPlayer:
             return [0] * num_barras
 
     def _get_spectrum_bands(self, fft_data, freqs, num_bands):
-        """
-        Agrupa os dados da FFT em bandas de frequência para o espectro visual.
-        Usa uma escala logarítmica para as frequências para melhor percepção humana.
-        """
         if num_bands == 0:
             return np.array([])
 
@@ -317,16 +294,9 @@ class AudioPlayer:
         return bands_output
 
     def is_playing(self):
-        """
-        Verifica se a música está tocando ativamente (não pausada e o mixer está busy).
-        """
         return pygame.mixer.music.get_busy() and not self.pausado
 
     def check_events(self):
-        """
-        Processa eventos do Pygame, como o evento de fim de música.
-        Este método DEVE ser chamado no loop principal da UI.
-        """
         for event in pygame.event.get():
             if event.type == self.EVENTO_FIM_MUSICA:
                 self.notify('musica_terminada')
