@@ -1,11 +1,28 @@
+# ui_core.py
 import curses
 import time
 import os
 import subprocess
 
-from ui_utils import init_cores, uso_recursos, limpar_terminal
+# Importações de módulos de utilitários e componentes
+from ui_utils import init_cores, uso_recursos, limpar_terminal # Mantém se estas funções são de ui_utils.py
 from ui_components import UIComponents
-from ui_state import UIState
+# REMOVER esta importação, UIState não é mais necessária:
+# from ui_state import UIState
+
+# Importa PASTA_DADOS do arquivo centralizado, se você não tiver utils.py na raiz, pode ser constants.py
+# Se init_cores e uso_recursos não estiverem em ui_utils, você precisaria de um 'utils.py' na raiz
+# ou importá-las de onde elas realmente estão definidas.
+# Para este exemplo, assumimos que elas estão em ui_utils.
+# Se você criou um 'constants.py' na raiz, o import seria:
+# from constants import PASTA_DADOS
+
+# Se você tem utils.py na raiz e moveu init_cores, uso_recursos para lá:
+# from utils import PASTA_DADOS, init_cores, uso_recursos
+# Caso contrário, mantenha como estava e adicione apenas o import de PASTA_DADOS de constants.py
+from constants import PASTA_DADOS # IMPORTANTE: Ajuste para 'from constants import PASTA_DADOS' se você criou 'constants.py'
+
+
 from audio import AudioPlayer
 from playlist import PlaylistManager
 from historico import Historico
@@ -19,15 +36,16 @@ class UIPlayer:
     def __init__(self, stdscr):
         self.stdscr = stdscr
         self.player = AudioPlayer()
-        self.playlist = PlaylistManager()
-        self.historico = Historico()
+        self.playlist = PlaylistManager() # PlaylistManager agora carrega seu próprio estado e favoritos
+        self.historico = Historico() # Historico agora carrega seu próprio estado
         self.biblioteca = Biblioteca()
         self.config_manager = ConfigManager()
         self.radio_player = RadioPlayer()
 
         self.ui_components = UIComponents(stdscr)
-        PASTA_DADOS = os.path.join(os.path.dirname(__file__), '..', 'data')
-        self.ui_state = UIState(PASTA_DADOS)
+        # REMOVER: A definição de PASTA_DADOS e a inicialização de UIState não são mais necessárias aqui
+        # PASTA_DADOS = os.path.join(os.path.dirname(__file__), '..', 'data')
+        # self.ui_state = UIState(PASTA_DADOS)
 
         self.volume = self.player.get_volume()
         self.playlist_selecionada = 0
@@ -44,15 +62,17 @@ class UIPlayer:
         self.curses_lines = curses.LINES
         self.curses_cols = curses.COLS
 
-        self.carregar_favoritos()
-        self.carregar_historico()
+        # REMOVER: Favoritos e histórico são carregados pelos respectivos managers em seus __init__
+        # self.carregar_favoritos()
+        # self.carregar_historico()
 
-        init_cores()
+        init_cores() # Mantenha esta linha se init_cores vem de ui_utils ou utils.py
         self.stdscr.nodelay(True)
         self.stdscr.keypad(True)
         curses.curs_set(0)
 
-        self.playlist.carregar_estado()
+        # REMOVER: playlist.carregar_estado() já é chamada no __init__ de PlaylistManager
+        # self.playlist.carregar_estado()
         if self.playlist.playlists:
             primeira = next(iter(self.playlist.playlists))
             self.playlist.playlist_atual = self.playlist.playlists[primeira].copy()
@@ -298,7 +318,7 @@ class UIPlayer:
                         self.stdscr.addstr(y_offset, 4, f"Músicas únicas: {len(set(self.historico.pilha))}")
                         y_offset += 1
                     if y_offset < curses.LINES - 2:
-                        self.stdscr.addstr(y_offset, 4, f"Favoritos: {len(self.favoritos)}")
+                        self.stdscr.addstr(y_offset, 4, f"Favoritos: {len(self.playlist.favoritos)}") # Usando PlaylistManager.favoritos
                         y_offset += 1
                     if y_offset < curses.LINES - 2:
                         self.stdscr.addstr(y_offset, 4, f"Playlists: {len(self.playlist.playlists)}")
@@ -332,17 +352,17 @@ class UIPlayer:
     def solicitar_entrada(self, prompt, y):
         return self.ui_components.solicitar_entrada(prompt, y)
 
-    def salvar_historico(self):
-        self.ui_state.salvar_historico(self.historico.pilha)
+    # REMOVER estes métodos, Historico.py agora gerencia o salvamento e carregamento
+    # def salvar_historico(self):
+    #     self.ui_state.salvar_historico(self.historico.pilha)
+    # def carregar_historico(self):
+    #     self.historico.pilha = self.ui_state.carregar_historico()
 
-    def carregar_historico(self):
-        self.historico.pilha = self.ui_state.carregar_historico()
-
-    def salvar_favoritos(self):
-        self.ui_state.salvar_favoritos(self.favoritos)
-
-    def carregar_favoritos(self):
-        self.favoritos = self.ui_state.carregar_favoritos()
+    # REMOVER estes métodos, PlaylistManager.py agora gerencia favoritos
+    # def salvar_favoritos(self):
+    #    self.ui_state.salvar_favoritos(self.favoritos)
+    # def carregar_favoritos(self):
+    #    self.favoritos = self.ui_state.carregar_favoritos()
 
     def abrir_diretorio(self):
         """
@@ -544,6 +564,7 @@ class UIPlayer:
         nomes = list(self.playlist.playlists.keys())
         if not nomes:
             self.ui_components.mostrar_mensagem("Nenhuma playlist encontrada.", 2)
+            # time.sleep(1) # Consider adding a short sleep here for message visibility
             return
 
         idx = 0
@@ -639,11 +660,13 @@ class UIPlayer:
         if not self.playlist.playlist_atual:
             return
         musica = self.playlist.playlist_atual[self.playlist_selecionada]
-        if musica in self.favoritos:
-            self.favoritos.remove(musica)
+        # Use PlaylistManager's methods for favorites
+        if self.playlist.is_favorito(musica):
+            self.playlist.remover_favorito(musica)
+            self.ui_components.mostrar_mensagem(f"Música desfavoritada! Pressione qualquer tecla...", curses.LINES - 3)
         else:
-            self.favoritos.add(musica)
-        self.salvar_favoritos()
+            self.playlist.adicionar_favorito(musica)
+            self.ui_components.mostrar_mensagem(f"Música favoritada! Pressione qualquer tecla...", curses.LINES - 3)
 
     def saltar_para_musica(self):
         try:
@@ -696,7 +719,7 @@ class UIPlayer:
             elif key == ord('6'):
                 self._ordenar_por_metadado('genero')
             elif key == ord('7'):
-                pass
+                pass # Não há uma "data de adição" fácil para a playlist_atual
             else:
                 self.ui_components.mostrar_mensagem("Opção inválida! Pressione qualquer tecla...", curses.LINES - 3)
                 self.stdscr.nodelay(True)
@@ -704,6 +727,8 @@ class UIPlayer:
             self.playlist_selecionada = 0
             self.playlist_offset = 0
             self.ui_components.mostrar_mensagem("Playlist ordenada! Pressione qualquer tecla...", curses.LINES - 3)
+            # Após ordenar a playlist_atual, salve o estado, pois as ordens são mantidas
+            self.playlist.salvar_estado()
         except curses.error:
             self.ui_components.mostrar_mensagem("Terminal muito pequeno para ordenar!", curses.LINES - 3)
 
@@ -713,6 +738,7 @@ class UIPlayer:
         self.playlist.playlist_atual.sort(
             key=lambda x: Musica(x).metadados.get(metadado, '').lower()
         )
+        self.playlist.salvar_estado() # Salva após ordenar a playlist_atual
 
     def _ordenar_por_duracao(self):
         def get_duracao_da_musica(caminho_musica):
@@ -720,6 +746,7 @@ class UIPlayer:
             return musica_obj.metadados.get('duracao', 0)
 
         self.playlist.playlist_atual.sort(key=get_duracao_da_musica, reverse=True)
+        self.playlist.salvar_estado() # Salva após ordenar a playlist_atual
 
     def play_pause(self):
         self.player.play_pause()
@@ -744,7 +771,7 @@ class UIPlayer:
             musica = self.playlist.playlist_atual[self.playlist_selecionada]
             self.player.carregar_musica(musica)
             self.player.play()
-            self.historico.adicionar(musica)
+            self.historico.adicionar(musica) # Historico.adicionar() já chama salvar()
 
         itens_por_coluna_real = self.ui_components.calcular_itens_por_coluna_playlist()
         if itens_por_coluna_real > 0:
@@ -927,16 +954,16 @@ class UIPlayer:
             largura=espectro_largura,
             altura=espectro_altura
         )
-
+        # Pass self.playlist.favoritos to draw_playlist
         self.ui_components.desenhar_playlist(
             self.playlist.playlist_atual,
             self.playlist_selecionada,
             self.playlist_offset,
-            self.favoritos,
+            self.playlist.favoritos, # Usa a lista de favoritos do PlaylistManager
             y=playlist_y, x=2, altura=altura_playlist, largura=largura_playlist
         )
 
-        cpu_usage, ram_usage = uso_recursos()
+        cpu_usage, ram_usage = uso_recursos() # Assumindo que uso_recursos vem de ui_utils ou utils.py
         self.ui_components.desenhar_recursos(cpu_usage, ram_usage, y=recursos_y, x=2)
         self.ui_components.desenhar_volume(self.volume, y=volume_y, x=2)
         self.ui_components.desenhar_status(
@@ -973,8 +1000,10 @@ class UIPlayer:
             self.config_manager.set('volume', self.volume)
             self.config_manager.set('equalizacao', self.equalizacao)
             self.config_manager.set('modo_visualizacao', self.modo_visualizacao)
-            self.salvar_historico()
-            self.salvar_favoritos()
+            # Os managers agora salvam seus próprios estados quando são modificados
+            # Mas um salvamento final pode ser útil ao sair
+            self.playlist.salvar_estado() # Salva o estado da playlist e favoritos
+            # self.historico.salvar() # Historico.adicionar() já chama salvar(). Se quiser salvar no loop, chame aqui.
 
             try:
                 key = self.stdscr.getch()

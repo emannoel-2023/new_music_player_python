@@ -1,7 +1,9 @@
+# playlist.py
 import os
 import json
+from constants import PASTA_DADOS # Importa PASTA_DADOS do arquivo centralizado
 
-PASTA_DADOS = os.path.join(os.path.dirname(__file__), '..', 'data')
+# Os caminhos agora usam a PASTA_DADOS centralizada
 ESTADO_PLAYER = os.path.join(PASTA_DADOS, 'estado_player.json')
 
 class PlaylistManager:
@@ -28,28 +30,50 @@ class PlaylistManager:
     def criar_playlist(self, nome):
         if nome not in self.playlists:
             self.playlists[nome] = []
+            self.salvar_estado() # Salva após a criação
             return True
         return False
 
     def adicionar_na_playlist(self, nome, caminho):
         if nome in self.playlists and caminho not in self.playlists[nome]:
             self.playlists[nome].append(caminho)
+            self.salvar_estado() # Salva após adicionar
             return True
         return False
 
     def remover_da_playlist(self, nome, indice):
         if nome in self.playlists and 0 <= indice < len(self.playlists[nome]):
             del self.playlists[nome][indice]
+            self.salvar_estado() # Salva após remover
             return True
         return False
 
     def ordenar_playlist(self, nome, criterio='titulo'):
-        from biblioteca import Musica
+        from biblioteca import Musica # Assumindo que Musica está disponível e é necessária
         if nome in self.playlists:
             self.playlists[nome].sort(key=lambda c: Musica(c).metadados.get(criterio, '').lower())
+            self.salvar_estado() # Salva após ordenar
+
+    def adicionar_favorito(self, caminho_musica):
+        if caminho_musica not in self.favoritos:
+            self.favoritos.append(caminho_musica)
+            self.salvar_estado()
+            return True
+        return False
+
+    def remover_favorito(self, caminho_musica):
+        if caminho_musica in self.favoritos:
+            self.favoritos.remove(caminho_musica)
+            self.salvar_estado()
+            return True
+        return False
+
+    def is_favorito(self, caminho_musica):
+        return caminho_musica in self.favoritos
 
     def salvar_estado(self):
         try:
+            os.makedirs(PASTA_DADOS, exist_ok=True) # Garante que a pasta de dados existe
             with open(ESTADO_PLAYER, 'w', encoding='utf-8') as f:
                 json.dump({
                     'playlists': self.playlists,
