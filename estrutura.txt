@@ -1,26 +1,26 @@
 soundwave/
 │
+├── constants.py           # NOVO: Define PASTA_DADOS e outras constantes globais
+├── data/                  # AGORA APENAS AQUI: Armazena estado_player.json, favoritos.json, historico.json
+│   ├── estado_player.json
+│   ├── favoritos.json
+│   └── historico.json
 ├── radio_terminal(bonus)/
 ├── src/
 │   ├── __pycache__/
-│   ├── data/
-│       ├── estado_player.json
-│       ├── favoritos.json
-│       └── historico.json
 │   ├── ui/
 │   │   ├── __pycache__/
 │   │   ├── __init__.py
 │   │   ├── ui_components.py
 │   │   ├── ui_core.py
-│   │   ├── ui_state.py
-│   │   └── ui_utils.py
+│   │   └── ui_utils.py    # ui_state.py será REMOVIDO
 │   ├── __init__.py
 │   ├── audio.py
 │   ├── biblioteca.py
 │   ├── comandos.py
 │   ├── config_manager.py
-│   ├── historico.py
-│   ├── playlist.py
+│   ├── historico.py       # Gerencia o próprio salvamento/carregamento
+│   ├── playlist.py        # Gerencia o próprio salvamento/carregamento (incluindo favoritos)
 │   ├── recursos.py
 │   └── utils.py
 ├── testes/
