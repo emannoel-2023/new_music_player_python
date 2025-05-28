@@ -12,11 +12,11 @@ A escolha de desenvolver o SoundWave Player para o terminal não foi arbitrária
 
 Ambientes gráficos modernos, com suas animações, transições e elementos visuais ricos, consomem uma quantidade significativa de recursos de CPU e RAM. Para usuários com **hardware mais antigo ou limitado**, essa demanda pode resultar em lentidão, travamentos e uma experiência frustrante.
 
-O SoundWave Player, ao operar no terminal, elimina a necessidade de renderizar uma interface gráfica complexa. As bibliotecas como `curses` [cite: 1] são otimizadas para manipulação de texto em console, resultando em:
+O SoundWave Player, ao operar no terminal, elimina a necessidade de renderizar uma interface gráfica complexa. As bibliotecas como `curses` são otimizadas para manipulação de texto em console, resultando em:
 
-* **Menor consumo de CPU**: A ausência de uma interface gráfica pesada significa que o processador pode se concentrar na reprodução de áudio e nas funcionalidades do player, em vez de gerenciar elementos visuais. O player inclusive monitora e exibe o uso de CPU e RAM em tempo real[cite: 1].
+* **Menor consumo de CPU**: A ausência de uma interface gráfica pesada significa que o processador pode se concentrar na reprodução de áudio e nas funcionalidades do player, em vez de gerenciar elementos visuais. O player inclusive monitora e exibe o uso de CPU e RAM em tempo real.
 * **Menor consumo de RAM**: A memória é utilizada principalmente para os dados do áudio e as estruturas de dados do programa, não para texturas ou elementos visuais complexos. Isso é crucial para máquinas com pouca RAM.
-* **Compatibilidade ampla**: Um aplicativo de terminal tende a ser mais portátil e a funcionar em uma gama maior de sistemas operacionais (Linux, macOS, Windows via `windows-curses` [cite: 3]), sem a necessidade de drivers gráficos específicos ou dependências de frameworks GUI.
+* **Compatibilidade ampla**: Um aplicativo de terminal tende a ser mais portátil e a funcionar em uma gama maior de sistemas operacionais (Linux, macOS, Windows via `windows-curses`), sem a necessidade de drivers gráficos específicos ou dependências de frameworks GUI.
 
 ### 2. Estabilidade e Foco
 
@@ -36,35 +36,35 @@ O SoundWave Player é construído sobre uma arquitetura modular, onde cada compo
 
 ### 1. Reprodução de Áudio (`audio.py`)
 
-* **`pygame.mixer`**: A escolha de `pygame.mixer` [cite: 1] para a reprodução de áudio se deve à sua simplicidade e eficiência para tocar arquivos de música. Embora `pygame` seja conhecido por desenvolvimento de jogos, seu módulo de mixer é leve e performático para áudio, suportando diversos formatos como MP3, WAV, FLAC e OGG[cite: 1].
+* **`pygame.mixer`**: A escolha de `pygame.mixer` para a reprodução de áudio se deve à sua simplicidade e eficiência para tocar arquivos de música. Embora `pygame` seja conhecido por desenvolvimento de jogos, seu módulo de mixer é leve e performático para áudio, suportando diversos formatos como MP3, WAV, FLAC e OGG.
 * **Espectro Visual (`numpy`, `pydub`)**: A geração do espectro visual é uma funcionalidade que enriquece a experiência no terminal.
-    * `pydub` [cite: 1] é utilizada para carregar segmentos de áudio e extrair os dados de amostra brutos, que são então processados.
-    * `numpy` [cite: 1] é fundamental para realizar a Transformada Rápida de Fourier (FFT), convertendo os dados de tempo para o domínio da frequência, permitindo a visualização das barras do espectro. A suavização das barras e a normalização do espectro dinâmico garantem uma visualização fluida e adaptável[cite: 1].
-* **Mutagen**: A biblioteca `mutagen` [cite: 1] é empregada para extrair metadados como duração, artista, álbum, gênero e título dos arquivos de áudio. Isso garante que o player possa exibir informações detalhadas sobre a música atual e organizar a biblioteca.
+    * `pydub` é utilizada para carregar segmentos de áudio e extrair os dados de amostra brutos, que são então processados.
+    * `numpy`é fundamental para realizar a Transformada Rápida de Fourier (FFT), convertendo os dados de tempo para o domínio da frequência, permitindo a visualização das barras do espectro. A suavização das barras e a normalização do espectro dinâmico garantem uma visualização fluida e adaptável.
+* **Mutagen**: A biblioteca `mutagen` é empregada para extrair metadados como duração, artista, álbum, gênero e título dos arquivos de áudio. Isso garante que o player possa exibir informações detalhadas sobre a música atual e organizar a biblioteca.
 
 ### 2. Interface de Usuário (`src/ui/`)
 
 A pasta `src/ui` contém a lógica para a interface de usuário baseada em `curses`.
 
-* **`ui_core.py`**: É o coração da interface. Ele orquestra a interação entre o player de áudio, o gerenciador de playlists, o histórico e os componentes visuais. O uso do padrão Observer para a comunicação entre o `AudioPlayer` e a `UIPlayer` (através do método `atualizar`) permite que a UI reaja a eventos do player, como mudança de volume ou fim de música, de forma desacoplada[cite: 1].
-* **`ui_components.py`**: Este módulo é responsável por desenhar os elementos individuais da interface, como bordas, título (`pyfiglet` [cite: 1]), espectro, barra de volume, status da música e o menu inferior[cite: 1]. A separação dos componentes de desenho torna o código mais limpo e reutilizável.
-* **`ui_utils.py`**: Contém funções auxiliares como a inicialização das cores `curses` e o formato de tempo[cite: 1]. A função `uso_recursos` [cite: 1] (que utiliza `psutil` [cite: 1]) foi realocada para cá para centralizar as utilidades de UI.
-* **`ui_state.py`**: Gerencia a persistência de dados específicos da interface, como o histórico de reprodução e a lista de favoritos. Ele utiliza `json` para salvar e carregar esses dados em arquivos na pasta `data/`[cite: 1].
+* **`ui_core.py`**: É o coração da interface. Ele orquestra a interação entre o player de áudio, o gerenciador de playlists, o histórico e os componentes visuais. O uso do padrão Observer para a comunicação entre o `AudioPlayer` e a `UIPlayer` (através do método `atualizar`) permite que a UI reaja a eventos do player, como mudança de volume ou fim de música, de forma desacoplada.
+* **`ui_components.py`**: Este módulo é responsável por desenhar os elementos individuais da interface, como bordas, título (`pyfiglet` ), espectro, barra de volume, status da música e o menu inferior. A separação dos componentes de desenho torna o código mais limpo e reutilizável.
+* **`ui_utils.py`**: Contém funções auxiliares como a inicialização das cores `curses` e o formato de tempo. A função `uso_recursos`  (que utiliza `psutil` ) foi realocada para cá para centralizar as utilidades de UI.
+* **`ui_state.py`**: Gerencia a persistência de dados específicos da interface, como o histórico de reprodução e a lista de favoritos. Ele utiliza `json` para salvar e carregar esses dados em arquivos na pasta `data/`.
 
 ### 3. Gerenciamento de Conteúdo
 
-* **`playlist.py`**: Permite criar, adicionar, remover e ordenar playlists[cite: 1]. Ele também é responsável por carregar o estado das playlists e favoritos de um arquivo `json`[cite: 1].
-* **`historico.py`**: Mantém um registro das músicas reproduzidas, oferecendo funcionalidades como `adicionar`, `anterior` e `estatisticas` (para as músicas mais tocadas)[cite: 1]. A persistência é gerenciada por `ui_state.py`.
-* **`biblioteca.py`**: Gerencia a coleção de músicas do usuário, permitindo carregar diretórios, listar músicas por artista, álbum ou gênero, e realizar buscas[cite: 1]. A implementação de uma árvore binária de busca (`ArvoreMusicas`) para títulos [cite: 1] demonstra uma preocupação com a eficiência na busca em grandes coleções.
-* **`config_manager.py`**: Responsável por salvar e carregar configurações do usuário, como o volume e as preferências de equalização, garantindo que as configurações sejam mantidas entre as sessões[cite: 1].
+* **`playlist.py`**: Permite criar, adicionar, remover e ordenar playlists. Ele também é responsável por carregar o estado das playlists e favoritos de um arquivo `json`.
+* **`historico.py`**: Mantém um registro das músicas reproduzidas, oferecendo funcionalidades como `adicionar`, `anterior` e `estatisticas` (para as músicas mais tocadas). A persistência é gerenciada por `ui_state.py`.
+* **`biblioteca.py`**: Gerencia a coleção de músicas do usuário, permitindo carregar diretórios, listar músicas por artista, álbum ou gênero, e realizar buscas. A implementação de uma árvore binária de busca (`ArvoreMusicas`) para títulos  demonstra uma preocupação com a eficiência na busca em grandes coleções.
+* **`config_manager.py`**: Responsável por salvar e carregar configurações do usuário, como o volume e as preferências de equalização, garantindo que as configurações sejam mantidas entre as sessões.
 
 ### 4. Integração com Rádio (`radio_terminal/`)
 
 A inclusão de um módulo de rádio separado (`radio.py`) é um "bônus" que amplia a funcionalidade do player.
 
-* **Execução Separada**: O rádio é executado como um subprocesso em uma nova janela de terminal[cite: 1]. Isso permite que o player principal pause a música atual, entregue o controle ao rádio e, ao final, retome a reprodução automaticamente, proporcionando uma transição suave[cite: 1].
-* **`MPVIPCClient`**: Esta classe permite a comunicação com o MPV (um player de mídia leve e de código aberto) via IPC (Inter-Process Communication)[cite: 1]. Isso é crucial para o rádio poder controlar o MPV e obter metadados das estações, como o título da música sendo transmitida.
-* **Monitoramento de Rede**: O `NetworkMonitor` [cite: 1] dentro do módulo de rádio demonstra uma preocupação com a experiência do usuário, exibindo o uso de rede em tempo real para streams de rádio.
+* **Execução Separada**: O rádio é executado como um subprocesso em uma nova janela de terminal. Isso permite que o player principal pause a música atual, entregue o controle ao rádio e, ao final, retome a reprodução automaticamente, proporcionando uma transição suave.
+* **`MPVIPCClient`**: Esta classe permite a comunicação com o MPV (um player de mídia leve e de código aberto) via IPC (Inter-Process Communication). Isso é crucial para o rádio poder controlar o MPV e obter metadados das estações, como o título da música sendo transmitida.
+* **Monitoramento de Rede**: O `NetworkMonitor`  dentro do módulo de rádio demonstra uma preocupação com a experiência do usuário, exibindo o uso de rede em tempo real para streams de rádio.
 
 ## Conclusão
 
@@ -151,32 +151,32 @@ Ordenação de playlists por diversos critérios
 Estrutura do projeto
 soundwave/
 ├── data/
-│   ├── estado_player.json # Estado do player e playlists salvas [cite: 7]
-│   ├── favoritos.json     # Lista de favoritos [cite: 7]
-│   └── historico.json     # Histórico de reprodução [cite: 278]
+│   ├── estado_player.json # Estado do player e playlists salvas 
+│   ├── favoritos.json     # Lista de favoritos 
+│   └── historico.json     # Histórico de reprodução 
 ├── radio_terminal/
-│   ├── radio.py           # Aplicativo de rádio integrado [cite: 284]
-│   └── ...                # Outros arquivos do rádio (e.g., radios.txt) [cite: 330]
+│   ├── radio.py           # Aplicativo de rádio integrado 
+│   └── ...                # Outros arquivos do rádio (e.g., radios.txt) 
 ├── src/
-│   ├── audio.py           # Player de áudio e espectro [cite: 33]
-│   ├── biblioteca.py      # Gerenciamento da biblioteca musical [cite: 21, 28]
-│   ├── comandos.py        # Interpretação e execução de comandos [cite: 14]
-│   ├── config_manager.py  # Gerenciamento de configurações [cite: 12, 13]
-│   ├── historico.py       # Histórico de músicas tocadas [cite: 10]
-│   ├── playlist.py        # Gerenciamento de playlists e favoritos [cite: 2, 3]
-│   ├── recursos.py        # Monitoramento CPU/RAM do processo (deprecated, use ui_utils) [cite: 2]
-│   ├── utils.py           # Funções auxiliares (formatar_tempo) [cite: 1, 100]
+│   ├── audio.py           # Player de áudio e espectro 
+│   ├── biblioteca.py      # Gerenciamento da biblioteca musical
+│   ├── comandos.py        # Interpretação e execução de comandos
+│   ├── config_manager.py  # Gerenciamento de configurações
+│   ├── historico.py       # Histórico de músicas tocadas
+│   ├── playlist.py        # Gerenciamento de playlists e favoritos
+│   ├── recursos.py        # Monitoramento CPU/RAM do processo (deprecated, use ui_utils)
+│   ├── utils.py           # Funções auxiliares (formatar_tempo)
 │   └── ui/
-│       ├── ui_components.py # Componentes visuais da UI [cite: 72]
-│       ├── ui_core.py       # Lógica principal da UI e interação [cite: 121]
-│       ├── ui_state.py      # Carregamento/salvamento de estado da UI [cite: 277]
-│       └── ui_utils.py      # Funções utilitárias da UI (inicia cores, uso_recursos) [cite: 282, 283]
+│       ├── ui_components.py # Componentes visuais da UI
+│       ├── ui_core.py       # Lógica principal da UI e interação
+│       ├── ui_state.py      # Carregamento/salvamento de estado da UI
+│       └── ui_utils.py      # Funções utilitárias da UI (inicia cores, uso_recursos)
 ├── testes/
 │   ├── test_audio.py
 │   ├── test_biblioteca.py
 │   └── test_playlist.py
-├── main.py                # Arquivo principal para iniciar o player [cite: 1]
-├── requirements.txt       # Dependências do projeto [cite: 373]
+├── main.py                # Arquivo principal para iniciar o player 
+├── requirements.txt       # Dependências do projeto
 └── README.md              # Este arquivo
 Integração com Rádio
 O SoundWave Player inclui integração com um aplicativo de rádio terminal. Quando o comando radio é executado:
