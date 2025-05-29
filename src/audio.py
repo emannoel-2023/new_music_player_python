@@ -4,7 +4,7 @@ import os
 import time
 import math
 import threading
-import queue # Importar queue
+import queue
 from pydub import AudioSegment
 try:
     from mutagen.mp3 import MP3
@@ -45,7 +45,6 @@ class AudioPlayer:
         self._espectro_max = 1.0
         self._reset_counter = 0
 
-        # Adicionar fila de comandos e thread de processamento
         self.command_queue = queue.Queue()
         self._command_thread = threading.Thread(target=self._run_command_processor, daemon=True)
         self._command_thread.start()
@@ -60,11 +59,10 @@ class AudioPlayer:
     def _run_command_processor(self):
         """Loop que processa comandos da fila."""
         while True:
-            command_item = None # Inicializa para garantir que command_item exista
+            command_item = None
             try:
-                # O timeout ajuda a não bloquear o thread indefinidamente e permite verificar o estado de parada
                 command, args, kwargs = self.command_queue.get(timeout=0.1)
-                command_item = (command, args, kwargs) # Armazena o item obtido
+                command_item = (command, args, kwargs)
                 
                 if command == 'load':
                     self._carregar_musica_internal(args[0])
@@ -85,16 +83,13 @@ class AudioPlayer:
                 elif command == 'quit': # Comando para parar o thread
                     return # Sai do loop do thread
             except queue.Empty:
-                # Nenhuma ação a ser feita, continua o loop
                 pass
             except Exception as e:
                 print(f"Erro no thread de comando do áudio: {e}")
             finally:
-                # Garante que task_done() é chamado APENAS se um item foi obtido
                 if command_item is not None:
                     self.command_queue.task_done()
 
-    # Métodos internos que serão chamados pelo thread de comando
     def _carregar_musica_internal(self, caminho):
         if os.path.exists(caminho):
             try:
@@ -164,7 +159,7 @@ class AudioPlayer:
                 self._resume_internal()
             elif not pygame.mixer.music.get_busy() and not self.pausado:
                 self._play_internal()
-            self.notify('play_pause') # Notificar após a ação
+            self.notify('play_pause')
 
     def _pause_internal(self):
         if pygame.mixer.music.get_busy() and not self.pausado:
@@ -196,7 +191,6 @@ class AudioPlayer:
         self.notify('equalizacao')
 
 
-    # Métodos públicos que enfileiram os comandos
     def carregar_musica(self, caminho):
         self.command_queue.put(('load', (caminho,), {}))
 
@@ -221,7 +215,6 @@ class AudioPlayer:
     def set_equalizacao(self, grave, medio, agudo):
         self.command_queue.put(('set_equalizacao', (grave, medio, agudo), {}))
 
-    # Os métodos abaixo podem continuar sendo chamados diretamente, pois são apenas getters
     def get_volume(self):
         return self.volume
 
@@ -317,7 +310,7 @@ class AudioPlayer:
                 return [0] * num_barras 
                 
         except Exception as e:
-            # print(f"Erro no espectro: {e}") # Descomentar para depuração
+            print(f"Erro no espectro: {e}")
             return [0] * num_barras
 
     def _get_spectrum_bands(self, fft_data, freqs, num_bands):
@@ -371,7 +364,6 @@ class AudioPlayer:
     def quit(self):
         """Envia um comando para o thread de áudio parar e desinicializa o pygame mixer."""
         self.command_queue.put(('quit', (), {}))
-        # Adicione um join com timeout para esperar o thread de comando terminar
         self._command_thread.join(timeout=1)
         pygame.mixer.quit()
         pygame.quit()
