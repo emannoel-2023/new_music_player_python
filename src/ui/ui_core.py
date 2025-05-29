@@ -59,7 +59,7 @@ class UIPlayer:
 
         self.ui_message_queue = queue.Queue()
 
-        self.play_music_thread = None
+        # Removido self.play_music_thread, não é mais necessário para operações do player
 
     def atualizar(self, evento):
         if evento == 'carregar_musica':
@@ -252,7 +252,7 @@ class UIPlayer:
             elif key == curses.KEY_LEFT:
                 controle = controles[idx]
                 self.equalizacao[controle] = max(-10, self.equalizacao[controle] - 0.5)
-                self.player.set_equalizacao(
+                self.player.set_equalizacao( # Enfileira o comando
                     self.equalizacao['grave'],
                     self.equalizacao['medio'],
                     self.equalizacao['agudo']
@@ -260,7 +260,7 @@ class UIPlayer:
             elif key == curses.KEY_RIGHT:
                 controle = controles[idx]
                 self.equalizacao[controle] = min(10, self.equalizacao[controle] + 0.5)
-                self.player.set_equalizacao(
+                self.player.set_equalizacao( # Enfileira o comando
                     self.equalizacao['grave'],
                     self.equalizacao['medio'],
                     self.equalizacao['agudo']
@@ -359,12 +359,10 @@ class UIPlayer:
             caminho = caminho.replace('\\', '/')
 
         if os.path.isdir(caminho):
-            if not self.play_music_thread or not self.play_music_thread.is_alive():
-                self.play_music_thread = threading.Thread(target=self._load_directory_and_play_first_threaded, args=(caminho,))
-                self.play_music_thread.daemon = True
-                self.play_music_thread.start()
-            else:
-                self._display_ui_message("Operação já em andamento. Aguarde ou pause a anterior.")
+            # Crie um thread para carregar o diretório (se for demorado), mas o play será via fila do AudioPlayer
+            thread_carregar = threading.Thread(target=self._load_directory_and_play_first_threaded, args=(caminho,))
+            thread_carregar.daemon = True
+            thread_carregar.start()
         else:
             self._display_ui_message(
                 "Caminho inválido ou inacessível. Verifique o caminho e as permissões. Pressione qualquer tecla..."
@@ -376,7 +374,7 @@ class UIPlayer:
         if self.playlist.playlist_atual:
             self.playlist_selecionada = 0
             self.playlist_offset = 0
-            self._tocar_selecionada_threaded()
+            self._tocar_selecionada() # Chama o método que enfileira o comando para o AudioPlayer
         self._display_ui_message(f"Diretório '{caminho}' carregado! Pressione qualquer tecla...")
 
 
@@ -511,12 +509,9 @@ class UIPlayer:
                 else:
                     selected_file_path = os.path.join(current_path, chosen_item_name)
 
-                    if not self.play_music_thread or not self.play_music_thread.is_alive():
-                        self.play_music_thread = threading.Thread(target=self._load_and_play_threaded_from_browser, args=(selected_file_path, current_path))
-                        self.play_music_thread.daemon = True
-                        self.play_music_thread.start()
-                    else:
-                        self._display_ui_message("Já carregando/tocando uma música. Aguarde ou pause a anterior.")
+                    # Este bloco de threading para _load_and_play_threaded_from_browser pode ser mantido
+                    # se o carregamento da playlist for demorado. A parte de "play" será enfileirada.
+                    threading.Thread(target=self._load_and_play_threaded_from_browser, args=(selected_file_path, current_path)).start()
                     break
 
             elif key in (ord('q'), ord('Q'), 27):
@@ -527,8 +522,8 @@ class UIPlayer:
 
     def _load_and_play_threaded_from_browser(self, selected_file_path, current_path):
         self.playlist.carregar_diretorio(current_path)
-        self.player.carregar_musica(selected_file_path)
-        self.player.play()
+        self.player.carregar_musica(selected_file_path) # Enfileira o comando
+        self.player.play() # Enfileira o comando
         self.historico.adicionar(selected_file_path)
 
         try:
@@ -590,12 +585,8 @@ class UIPlayer:
             elif key == curses.KEY_DOWN:
                 idx = min(len(nomes) - 1, idx + 1)
             elif key in (curses.KEY_ENTER, 10, 13):
-                if not self.play_music_thread or not self.play_music_thread.is_alive():
-                    self.play_music_thread = threading.Thread(target=self._load_playlist_and_play_threaded, args=(nomes[idx],))
-                    self.play_music_thread.daemon = True
-                    self.play_music_thread.start()
-                else:
-                    self._display_ui_message("Já carregando/tocando uma música. Aguarde.")
+                # Mantém este threading se o carregamento da playlist for demorado
+                threading.Thread(target=self._load_playlist_and_play_threaded, args=(nomes[idx],)).start()
                 break
         self.stdscr.nodelay(True)
 
@@ -605,8 +596,8 @@ class UIPlayer:
             self.playlist_selecionada = 0
             self.playlist_offset = 0
             if self.playlist.playlist_atual:
-                self.player.carregar_musica(self.playlist.playlist_atual[0])
-                self.player.play()
+                self.player.carregar_musica(self.playlist.playlist_atual[0]) # Enfileira o comando
+                self.player.play() # Enfileira o comando
                 self.historico.adicionar(self.playlist.playlist_atual[0])
             self._display_ui_message(f"Playlist '{playlist_name}' carregada! Tocando a primeira música.")
         except Exception as e:
@@ -674,7 +665,7 @@ class UIPlayer:
             num = -1
         if 1 <= num <= len(self.playlist.playlist_atual):
             self.playlist_selecionada = num - 1
-            self._tocar_selecionada_threaded()
+            self._tocar_selecionada() # Chamada que enfileira o comando
         else:
             self._display_ui_message("Número inválido! Pressione qualquer tecla...")
 
@@ -746,30 +737,30 @@ class UIPlayer:
         self.playlist.salvar_estado()
 
     def play_pause(self):
-        self.player.play_pause()
+        self.player.play_pause() # Enfileira o comando
 
     def parar(self):
-        self.player.parar()
+        self.player.parar() # Enfileira o comando
 
     def proxima(self):
         if not self.playlist.playlist_atual:
             self._display_ui_message("Playlist vazia para ir para a próxima.")
             return
         self.playlist_selecionada = (self.playlist_selecionada + 1) % len(self.playlist.playlist_atual)
-        self._tocar_selecionada_threaded()
+        self._tocar_selecionada() # Chamada que enfileira o comando
 
     def anterior(self):
         if not self.playlist.playlist_atual:
             self._display_ui_message("Playlist vazia para ir para a anterior.")
             return
         self.playlist_selecionada = (self.playlist_selecionada - 1 + len(self.playlist.playlist_atual)) % len(self.playlist.playlist_atual)
-        self._tocar_selecionada_threaded()
+        self._tocar_selecionada() # Chamada que enfileira o comando
 
-    def _tocar_selecionada_threaded(self):
+    def _tocar_selecionada(self): # Renomeado, não é mais um thread criado aqui
         if self.playlist.playlist_atual:
             musica = self.playlist.playlist_atual[self.playlist_selecionada]
-            self.player.carregar_musica(musica)
-            self.player.play()
+            self.player.carregar_musica(musica) # Enfileira o comando
+            self.player.play() # Enfileira o comando
             self.historico.adicionar(musica)
 
             itens_por_coluna_real = self.ui_components.calcular_itens_por_coluna_playlist()
@@ -783,11 +774,11 @@ class UIPlayer:
 
     def aumentar_volume(self):
         vol_novo = min(1.0, self.player.get_volume() + 0.05)
-        self.player.setar_volume(vol_novo)
+        self.player.setar_volume(vol_novo) # Enfileira o comando
 
     def diminuir_volume(self):
         vol_novo = max(0.0, self.player.get_volume() - 0.05)
-        self.player.setar_volume(vol_novo)
+        self.player.setar_volume(vol_novo) # Enfileira o comando
 
     def mostrar_historico(self):
         self.stdscr.clear()
@@ -820,7 +811,7 @@ class UIPlayer:
         self.musica_pausada_para_radio = False
         if self.player.get_nome() and self.player.is_playing():
             try:
-                self.player.pause() # Chama o método pause do AudioPlayer
+                self.player.pause() # Chama o método pause do AudioPlayer (enfileira o comando)
                 # Uma pequena pausa pode ajudar a garantir que o mixer processe a pausa
                 time.sleep(0.1)
                 self.musica_pausada_para_radio = True
@@ -876,7 +867,7 @@ class UIPlayer:
         # Se a música foi pausada para o rádio, tenta retomar
         if self.musica_pausada_para_radio:
             try:
-                self.player.resume() # Retoma a música pausada
+                self.player.resume() # Retoma a música pausada (enfileira o comando)
                 # Pode ser útil adicionar um pequeno atraso aqui também
                 time.sleep(0.1)
             except Exception as e:
@@ -998,8 +989,8 @@ class UIPlayer:
                 self.player.get_duracao() > 0 and
                 (self.player.get_progresso() >= self.player.get_duracao() - 0.1) and
                 not self.player.pausado and
-                not self.musica_pausada_para_radio): # Adicionamos esta condição
-                self.proxima()
+                not self.musica_pausada_para_radio):
+                self.proxima() # Essa chamada agora enfileira o comando de play
 
 
             current_lines = curses.LINES
@@ -1116,7 +1107,7 @@ class UIPlayer:
             elif key in (ord('1'), ):
                 self.abrir_diretorio()
             elif key == ord('2'):
-                self.play_pause()
+                self.play_pause() # Essa chamada agora enfileira o comando
             elif key in (curses.KEY_ENTER, 10, 13):
                 if self.playlist.playlist_atual:
                     musica_selecionada_caminho = self.playlist.playlist_atual[self.playlist_selecionada]
@@ -1125,25 +1116,28 @@ class UIPlayer:
                     is_currently_loaded_and_selected = False
                     if musica_tocando_caminho:
                         try:
-                            is_currently_loaded_and_selected = os.path.abspath(musica_selecionada_caminho) == os.path.abspath(musica_tocando_caminho)
+                            # Usar os.path.samefile para comparação robusta de caminhos de arquivo
+                            is_currently_loaded_and_selected = os.path.samefile(musica_selecionada_caminho, musica_tocando_caminho)
+                        except FileNotFoundError:
+                            is_currently_loaded_and_selected = False
                         except Exception:
                             is_currently_loaded_and_selected = False
 
                     if is_currently_loaded_and_selected:
-                        self.play_pause()
+                        self.play_pause() # Enfileira o comando
                     else:
-                        self._tocar_selecionada_threaded()
+                        self._tocar_selecionada() # Enfileira o comando
                 else:
-                    self.play_pause()
+                    self.play_pause() # Enfileira o comando (se não houver música carregada, vai tentar parar/iniciar algo inexistente)
 
             elif key in (ord('3'), ):
-                self.anterior()
+                self.anterior() # Enfileira o comando
             elif key in (ord('4'), ):
-                self.proxima()
+                self.proxima() # Enfileira o comando
             elif key in (ord('='), ord('+'), ):
-                self.aumentar_volume()
+                self.aumentar_volume() # Enfileira o comando
             elif key in (ord('-'), ):
-                self.diminuir_volume()
+                self.diminuir_volume() # Enfileira o comando
             elif key in (ord('b'), ord('B')):
                 self.buscar_musicas()
             elif key in (ord('t'), ord('T')):
@@ -1154,3 +1148,15 @@ class UIPlayer:
                 self.mostrar_estatisticas()
 
             time.sleep(0.02)
+
+    def __del__(self):
+        # Garante que o thread de áudio seja parado ao fechar o player
+        if hasattr(self, 'player') and self.player is not None:
+            self.player.quit()
+
+def main(stdscr):
+    player_ui = UIPlayer(stdscr)
+    player_ui.loop()
+
+if __name__ == '__main__':
+    curses.wrapper(main)

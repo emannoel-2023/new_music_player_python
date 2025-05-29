@@ -4,6 +4,7 @@ import os
 import time
 import math
 import threading
+import queue # Importar queue
 from pydub import AudioSegment
 try:
     from mutagen.mp3 import MP3
@@ -44,6 +45,11 @@ class AudioPlayer:
         self._espectro_max = 1.0
         self._reset_counter = 0
 
+        # Adicionar fila de comandos e thread de processamento
+        self.command_queue = queue.Queue()
+        self._command_thread = threading.Thread(target=self._run_command_processor, daemon=True)
+        self._command_thread.start()
+
     def add_observer(self, obs):
         self.observers.append(obs)
 
@@ -51,34 +57,67 @@ class AudioPlayer:
         for obs in self.observers:
             obs.atualizar(evento)
 
-    def carregar_musica(self, caminho):
-        with self.lock:
-            if os.path.exists(caminho):
+    def _run_command_processor(self):
+        """Loop que processa comandos da fila."""
+        while True:
+            command_item = None # Inicializa para garantir que command_item exista
+            try:
+                # O timeout ajuda a não bloquear o thread indefinidamente e permite verificar o estado de parada
+                command, args, kwargs = self.command_queue.get(timeout=0.1)
+                command_item = (command, args, kwargs) # Armazena o item obtido
+                
+                if command == 'load':
+                    self._carregar_musica_internal(args[0])
+                elif command == 'play':
+                    self._play_internal()
+                elif command == 'play_pause':
+                    self._play_pause_internal()
+                elif command == 'pause':
+                    self._pause_internal()
+                elif command == 'resume':
+                    self._resume_internal()
+                elif command == 'stop':
+                    self._parar_internal()
+                elif command == 'set_volume':
+                    self._setar_volume_internal(args[0])
+                elif command == 'set_equalizacao':
+                    self._set_equalizacao_internal(args[0], args[1], args[2])
+                elif command == 'quit': # Comando para parar o thread
+                    return # Sai do loop do thread
+            except queue.Empty:
+                # Nenhuma ação a ser feita, continua o loop
+                pass
+            except Exception as e:
+                print(f"Erro no thread de comando do áudio: {e}")
+            finally:
+                # Garante que task_done() é chamado APENAS se um item foi obtido
+                if command_item is not None:
+                    self.command_queue.task_done()
+
+    # Métodos internos que serão chamados pelo thread de comando
+    def _carregar_musica_internal(self, caminho):
+        if os.path.exists(caminho):
+            try:
+                pygame.mixer.music.load(caminho)
+                self.musica_atual = caminho
+                self.tempo_inicio = time.time()
+                self.pausado = False
+                self._get_and_set_duration(caminho)
                 try:
-                    pygame.mixer.music.load(caminho)
-                    self.musica_atual = caminho
-                    self.tempo_inicio = time.time()
-                    self.pausado = False
-                    
-                    self._get_and_set_duration(caminho)
-                    
-                    try:
-                        self._audio_segment = AudioSegment.from_file(caminho)
-                    except Exception as e:
-                        print("Erro ao carregar AudioSegment (para espectro):", e)
-                        self._audio_segment = None
-                    
-                    self._espectro_anterior = None
-                    self._espectro_max = 1.0
-                    self._reset_counter = 0
-                    
-                    self.notify('carregar_musica')
-                    return True
+                    self._audio_segment = AudioSegment.from_file(caminho)
                 except Exception as e:
-                    print(f"Erro ao carregar música: {e}")
-            else:
-                print("Arquivo não encontrado:", caminho)
-            return False
+                    print("Erro ao carregar AudioSegment (para espectro):", e)
+                    self._audio_segment = None
+                self._espectro_anterior = None
+                self._espectro_max = 1.0
+                self._reset_counter = 0
+                self.notify('carregar_musica')
+                return True
+            except Exception as e:
+                print(f"Erro ao carregar música: {e}")
+        else:
+            print("Arquivo não encontrado:", caminho)
+        return False
 
     def _get_and_set_duration(self, caminho):
         """Tenta obter a duração da música usando mutagen."""
@@ -103,63 +142,86 @@ class AudioPlayer:
             print(f"Erro ao obter duração da música {caminho} com mutagen: {e}")
             self.duracao = 0
 
-    def play(self):
-        """Inicia a reprodução da música carregada. Se estiver pausada, despausa. Se não estiver tocando, inicia."""
-        with self.lock:
-            if self.musica_atual:
-                if self.pausado:
-                    pygame.mixer.music.unpause()
-                    self.pausado = False
-                    self.notify('unpause')
-                elif not pygame.mixer.music.get_busy():
-                    pygame.mixer.music.play()
-                    self.tempo_inicio = time.time()
-                    self.pausado = False
-                    self.notify('play')
-            else:
-                print("Nenhuma música carregada para tocar.")
-
-    def play_pause(self):
-        with self.lock:
-            if self.musica_atual:
-                if pygame.mixer.music.get_busy() and not self.pausado:
-                    self.pause()
-                elif self.pausado:
-                    self.resume()
-                elif not pygame.mixer.music.get_busy() and not self.pausado:
-                    self.play() 
-                self.notify('play_pause')
-
-    def pause(self):
-        with self.lock:
-            if pygame.mixer.music.get_busy() and not self.pausado:
-                pygame.mixer.music.pause()
-                self.pausado = True
-                self.notify('pause')
-
-    def resume(self):
-        with self.lock:
+    def _play_internal(self):
+        if self.musica_atual:
             if self.pausado:
                 pygame.mixer.music.unpause()
                 self.pausado = False
                 self.notify('unpause')
+            elif not pygame.mixer.music.get_busy():
+                pygame.mixer.music.play()
+                self.tempo_inicio = time.time()
+                self.pausado = False
+                self.notify('play')
+        else:
+            print("Nenhuma música carregada para tocar.")
+
+    def _play_pause_internal(self):
+        if self.musica_atual:
+            if pygame.mixer.music.get_busy() and not self.pausado:
+                self._pause_internal()
+            elif self.pausado:
+                self._resume_internal()
+            elif not pygame.mixer.music.get_busy() and not self.pausado:
+                self._play_internal()
+            self.notify('play_pause') # Notificar após a ação
+
+    def _pause_internal(self):
+        if pygame.mixer.music.get_busy() and not self.pausado:
+            pygame.mixer.music.pause()
+            self.pausado = True
+            self.notify('pause')
+
+    def _resume_internal(self):
+        if self.pausado:
+            pygame.mixer.music.unpause()
+            self.pausado = False
+            self.notify('unpause')
+
+    def _parar_internal(self):
+        pygame.mixer.music.stop()
+        self.pausado = False
+        self._espectro_anterior = None
+        self._espectro_max = 1.0
+        self._reset_counter = 0
+        self.notify('parar')
+
+    def _setar_volume_internal(self, vol):
+        self.volume = max(0.0, min(1.0, float(vol)))
+        pygame.mixer.music.set_volume(self.volume)
+        self.notify('volume')
+
+    def _set_equalizacao_internal(self, grave, medio, agudo):
+        self.equalizacao = {'grave': grave, 'medio': medio, 'agudo': agudo}
+        self.notify('equalizacao')
+
+
+    # Métodos públicos que enfileiram os comandos
+    def carregar_musica(self, caminho):
+        self.command_queue.put(('load', (caminho,), {}))
+
+    def play(self):
+        self.command_queue.put(('play', (), {}))
+
+    def play_pause(self):
+        self.command_queue.put(('play_pause', (), {}))
+
+    def pause(self):
+        self.command_queue.put(('pause', (), {}))
+
+    def resume(self):
+        self.command_queue.put(('resume', (), {}))
 
     def parar(self):
-        with self.lock:
-            pygame.mixer.music.stop()
-            self.pausado = False
-            self._espectro_anterior = None
-            self._espectro_max = 1.0
-            self._reset_counter = 0
-            self.notify('parar')
+        self.command_queue.put(('stop', (), {}))
 
     def setar_volume(self, vol):
-        with self.lock:
-            self.volume = max(0.0, min(1.0, float(vol)))
-            pygame.mixer.music.set_volume(self.volume)
-            self.notify('volume')
-            return self.volume
+        self.command_queue.put(('set_volume', (vol,), {}))
 
+    def set_equalizacao(self, grave, medio, agudo):
+        self.command_queue.put(('set_equalizacao', (grave, medio, agudo), {}))
+
+    # Os métodos abaixo podem continuar sendo chamados diretamente, pois são apenas getters
     def get_volume(self):
         return self.volume
 
@@ -255,7 +317,7 @@ class AudioPlayer:
                 return [0] * num_barras 
                 
         except Exception as e:
-            print(f"Erro no espectro: {e}")
+            # print(f"Erro no espectro: {e}") # Descomentar para depuração
             return [0] * num_barras
 
     def _get_spectrum_bands(self, fft_data, freqs, num_bands):
@@ -305,3 +367,11 @@ class AudioPlayer:
     def set_equalizacao(self, grave, medio, agudo):
         self.equalizacao = {'grave': grave, 'medio': medio, 'agudo': agudo}
         self.notify('equalizacao')
+
+    def quit(self):
+        """Envia um comando para o thread de áudio parar e desinicializa o pygame mixer."""
+        self.command_queue.put(('quit', (), {}))
+        # Adicione um join com timeout para esperar o thread de comando terminar
+        self._command_thread.join(timeout=1)
+        pygame.mixer.quit()
+        pygame.quit()
