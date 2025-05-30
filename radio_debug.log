@@ -1,2 +1,1 @@
-2025-05-29 11:04:09,231 - DEBUG - subprocess.call(['ffmpeg', '-y', '-i', 'C:/Users/0561/Desktop/davi_emannoel_stuffs/musicas/TECHNO_TOTAL1\\01 - 2 Unlimited - Let the Beat Control Your Body.mp3', '-acodec', 'pcm_s16le', '-vn', '-f', 'wav', '-'])
-2025-05-29 11:04:35,453 - DEBUG - subprocess.call(['ffmpeg', '-y', '-i', 'C:/Users/0561/Desktop/davi_emannoel_stuffs/musicas/TECHNO_TOTAL1\\02 - Jam & Spoon - Follow Me.mp3', '-acodec', 'pcm_s16le', '-vn', '-f', 'wav', '-'])
+2025-05-30 10:00:36,070 - DEBUG - subprocess.call(['ffmpeg', '-y', '-i', 'C:\\Users\\0561\\Desktop\\davi_emannoel_stuffs\\musicas\\carro\\Eretika!\\A - Sacro Cosmo (Cosmo Mix).mp3', '-acodec', 'pcm_s16le', '-vn', '-f', 'wav', '-'])

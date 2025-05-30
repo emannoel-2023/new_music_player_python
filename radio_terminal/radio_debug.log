@@ -29931,3 +29931,208 @@ UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe3 in position 76: invalid
 2025-05-29 13:54:32,057 - INFO - Application exited.
 2025-05-29 13:54:32,057 - INFO - Stopping playback...
 2025-05-29 13:54:32,057 - INFO - Playback fully stopped.
+2025-05-30 09:24:06,193 - INFO - Loaded 52616 radios.
+2025-05-30 09:24:06,204 - INFO - Starting draw interface loop.
+2025-05-30 09:24:06,265 - DEBUG - Draw cycle time: 0.0026s
+2025-05-30 09:24:06,387 - DEBUG - Draw cycle time: 0.0006s
+2025-05-30 09:24:06,510 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:24:06,636 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:24:06,758 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:24:06,882 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:24:07,006 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:24:07,083 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:24:07,212 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:24:07,338 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:24:07,461 - INFO - Stop event received. Initiating shutdown.
+2025-05-30 09:24:07,465 - INFO - Markers saved successfully.
+2025-05-30 09:24:07,465 - INFO - Stopping playback...
+2025-05-30 09:24:07,466 - INFO - Playback fully stopped.
+2025-05-30 09:24:07,467 - DEBUG - Draw cycle time: 0.0007s
+2025-05-30 09:24:07,467 - INFO - Stop event received. Initiating shutdown.
+2025-05-30 09:24:07,471 - INFO - Markers saved successfully.
+2025-05-30 09:24:07,471 - INFO - Stopping playback...
+2025-05-30 09:24:07,471 - INFO - Playback fully stopped.
+2025-05-30 09:24:07,472 - INFO - Application main loop finished.
+2025-05-30 09:24:07,479 - INFO - Application exited.
+2025-05-30 09:24:07,480 - INFO - Stopping playback...
+2025-05-30 09:24:07,480 - INFO - Playback fully stopped.
+2025-05-30 09:31:54,135 - INFO - Loaded 52616 radios.
+2025-05-30 09:31:54,146 - INFO - Starting draw interface loop.
+2025-05-30 09:31:54,206 - DEBUG - Draw cycle time: 0.0024s
+2025-05-30 09:31:54,328 - DEBUG - Draw cycle time: 0.0003s
+2025-05-30 09:31:54,454 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:31:54,578 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:31:54,702 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:31:54,826 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:31:54,889 - INFO - Stop event received. Initiating shutdown.
+2025-05-30 09:31:54,893 - INFO - Markers saved successfully.
+2025-05-30 09:31:54,893 - INFO - Stopping playback...
+2025-05-30 09:31:54,894 - INFO - Playback fully stopped.
+2025-05-30 09:31:54,894 - DEBUG - Draw cycle time: 0.0006s
+2025-05-30 09:31:54,894 - INFO - Stop event received. Initiating shutdown.
+2025-05-30 09:31:54,896 - INFO - Markers saved successfully.
+2025-05-30 09:31:54,896 - INFO - Stopping playback...
+2025-05-30 09:31:54,896 - INFO - Playback fully stopped.
+2025-05-30 09:31:54,896 - INFO - Application main loop finished.
+2025-05-30 09:31:54,899 - INFO - Application exited.
+2025-05-30 09:31:54,900 - INFO - Stopping playback...
+2025-05-30 09:31:54,900 - INFO - Playback fully stopped.
+2025-05-30 09:35:15,729 - INFO - Loaded 52616 radios.
+2025-05-30 09:35:15,740 - INFO - Starting draw interface loop.
+2025-05-30 09:35:15,797 - DEBUG - Draw cycle time: 0.0023s
+2025-05-30 09:35:15,920 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:16,046 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:16,171 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:16,233 - DEBUG - Draw cycle time: 0.0005s
+2025-05-30 09:35:16,358 - DEBUG - Draw cycle time: 0.0013s
+2025-05-30 09:35:16,482 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:16,545 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:16,671 - DEBUG - Draw cycle time: 0.0014s
+2025-05-30 09:35:16,794 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:16,920 - INFO - Stopping playback...
+2025-05-30 09:35:16,920 - INFO - Playback fully stopped.
+2025-05-30 09:35:16,920 - INFO - Starting MPV with command: mpv --no-video --input-ipc-server=\\.\pipe\mpvpipe-11252 --cache=yes --cache-secs=10 --network-timeout=10 --force-media-title=Radio Stream --volume=50 --idle=no --quiet http://afghanradio.org:8000/;.mp3
+2025-05-30 09:35:17,085 - INFO - MPV process started with PID: 24816
+2025-05-30 09:35:17,085 - WARNING - Failed to connect to Win32 IPC pipe initially: (2, 'CreateFile', 'O sistema não pode encontrar o arquivo especificado.')
+2025-05-30 09:35:17,287 - INFO - Connected to Win32 IPC pipe: \\.\pipe\mpvpipe-11252
+2025-05-30 09:35:17,288 - DEBUG - Enqueuing IPC command: enable_event (ID: 1)
+2025-05-30 09:35:17,288 - DEBUG - Enqueuing IPC command: observe_property (ID: 2)
+2025-05-30 09:35:17,288 - DEBUG - Enqueuing IPC command: observe_property (ID: 3)
+2025-05-30 09:35:17,289 - DEBUG - Enqueuing IPC command: observe_property (ID: 4)
+2025-05-30 09:35:17,289 - INFO - MPV IPC: Enabled property observation.
+2025-05-30 09:35:17,290 - DEBUG - Draw cycle time: 0.0005s
+2025-05-30 09:35:17,293 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-05-30 09:35:17,293 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-05-30 09:35:17,294 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-05-30 09:35:17,294 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-05-30 09:35:17,295 - DEBUG - Metadata updated: N/A
+2025-05-30 09:35:17,355 - DEBUG - Draw cycle time: 0.0003s
+2025-05-30 09:35:17,480 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:17,604 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:17,730 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:17,792 - DEBUG - Draw cycle time: 0.0011s
+2025-05-30 09:35:17,917 - DEBUG - Draw cycle time: 0.0005s
+2025-05-30 09:35:18,039 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:18,163 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:18,288 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:18,412 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:18,537 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:18,663 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:18,786 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:35:18,910 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:19,035 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:19,160 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:19,286 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:19,413 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:19,536 - DEBUG - Draw cycle time: 0.0003s
+2025-05-30 09:35:19,659 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:19,784 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:35:19,909 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:20,032 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:20,157 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:20,283 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:20,408 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:20,532 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:20,552 - DEBUG - Metadata updated: Pamir Ministries - How Is You Relationship With Your Parents...
+2025-05-30 09:35:20,593 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:35:20,716 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:20,779 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:20,841 - DEBUG - Requesting volume adjustment to: 45
+2025-05-30 09:35:20,841 - DEBUG - Enqueuing IPC command: set_property (ID: 5)
+2025-05-30 09:35:20,842 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:20,846 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-05-30 09:35:20,904 - DEBUG - Draw cycle time: 0.0008s
+2025-05-30 09:35:21,028 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:21,153 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:21,215 - DEBUG - Requesting volume adjustment to: 40
+2025-05-30 09:35:21,216 - DEBUG - Enqueuing IPC command: set_property (ID: 6)
+2025-05-30 09:35:21,217 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-05-30 09:35:21,217 - DEBUG - Draw cycle time: 0.0014s
+2025-05-30 09:35:21,341 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:21,465 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:21,528 - DEBUG - Draw cycle time: 0.0006s
+2025-05-30 09:35:21,652 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:35:21,776 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:21,839 - DEBUG - Draw cycle time: 0.0006s
+2025-05-30 09:35:21,963 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:22,088 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:22,153 - DEBUG - Draw cycle time: 0.0013s
+2025-05-30 09:35:22,277 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:22,400 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:22,464 - DEBUG - Draw cycle time: 0.0013s
+2025-05-30 09:35:22,589 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:22,717 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:22,779 - DEBUG - Draw cycle time: 0.0013s
+2025-05-30 09:35:22,841 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:35:22,966 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:35:23,027 - INFO - Stop event received. Initiating shutdown.
+2025-05-30 09:35:23,029 - INFO - Markers saved successfully.
+2025-05-30 09:35:23,030 - INFO - Stopping playback...
+2025-05-30 09:35:23,030 - DEBUG - Enqueuing IPC command: quit (ID: 7)
+2025-05-30 09:35:23,030 - INFO - Sent 'quit' command to MPV via IPC.
+2025-05-30 09:35:23,031 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-05-30 09:35:23,037 - WARNING - MPV IPC pipe broken, attempting to reconnect...
+2025-05-30 09:35:23,037 - INFO - Closed Win32 IPC pipe handle.
+2025-05-30 09:35:23,037 - WARNING - Failed to connect to Win32 IPC pipe initially: (2, 'CreateFile', 'O sistema não pode encontrar o arquivo especificado.')
+2025-05-30 09:35:23,037 - INFO - MPVIPCClient run loop finished.
+2025-05-30 09:35:23,131 - INFO - MPVIPCClient stopping gracefully...
+2025-05-30 09:35:23,131 - INFO - MPV process stopped.
+2025-05-30 09:35:23,131 - INFO - Playback fully stopped.
+2025-05-30 09:35:23,131 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:35:23,131 - INFO - Stop event received. Initiating shutdown.
+2025-05-30 09:35:23,132 - INFO - Markers saved successfully.
+2025-05-30 09:35:23,132 - INFO - Stopping playback...
+2025-05-30 09:35:23,132 - INFO - Playback fully stopped.
+2025-05-30 09:35:23,132 - INFO - Application main loop finished.
+2025-05-30 09:35:23,137 - INFO - Application exited.
+2025-05-30 09:35:23,137 - INFO - Stopping playback...
+2025-05-30 09:35:23,137 - INFO - Playback fully stopped.
+2025-05-30 09:40:24,746 - INFO - Loaded 52616 radios.
+2025-05-30 09:40:24,757 - INFO - Starting draw interface loop.
+2025-05-30 09:40:24,822 - DEBUG - Draw cycle time: 0.0022s
+2025-05-30 09:40:24,945 - DEBUG - Draw cycle time: 0.0004s
+2025-05-30 09:40:25,068 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:40:25,192 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:40:25,314 - DEBUG - Draw cycle time: 0.0003s
+2025-05-30 09:40:25,439 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:40:25,564 - DEBUG - Draw cycle time: 0.0006s
+2025-05-30 09:40:25,688 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:40:25,812 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:40:25,936 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:40:26,061 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:40:26,187 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:40:26,313 - DEBUG - Draw cycle time: 0.0003s
+2025-05-30 09:40:26,435 - DEBUG - Draw cycle time: 0.0003s
+2025-05-30 09:40:26,497 - INFO - Stop event received. Initiating shutdown.
+2025-05-30 09:40:26,501 - INFO - Markers saved successfully.
+2025-05-30 09:40:26,502 - INFO - Stopping playback...
+2025-05-30 09:40:26,502 - INFO - Playback fully stopped.
+2025-05-30 09:40:26,503 - DEBUG - Draw cycle time: 0.0007s
+2025-05-30 09:40:26,504 - INFO - Stop event received. Initiating shutdown.
+2025-05-30 09:40:26,507 - INFO - Markers saved successfully.
+2025-05-30 09:40:26,507 - INFO - Stopping playback...
+2025-05-30 09:40:26,507 - INFO - Playback fully stopped.
+2025-05-30 09:40:26,508 - INFO - Application main loop finished.
+2025-05-30 09:40:26,516 - INFO - Application exited.
+2025-05-30 09:40:26,516 - INFO - Stopping playback...
+2025-05-30 09:40:26,517 - INFO - Playback fully stopped.
+2025-05-30 09:45:26,483 - INFO - Loaded 52616 radios.
+2025-05-30 09:45:26,495 - INFO - Starting draw interface loop.
+2025-05-30 09:45:26,567 - DEBUG - Draw cycle time: 0.0069s
+2025-05-30 09:45:26,684 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:45:26,808 - DEBUG - Draw cycle time: 0.0001s
+2025-05-30 09:45:26,933 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:45:27,057 - DEBUG - Draw cycle time: 0.0002s
+2025-05-30 09:45:27,181 - INFO - Stop event received. Initiating shutdown.
+2025-05-30 09:45:27,185 - INFO - Markers saved successfully.
+2025-05-30 09:45:27,185 - INFO - Stopping playback...
+2025-05-30 09:45:27,185 - INFO - Playback fully stopped.
+2025-05-30 09:45:27,186 - DEBUG - Draw cycle time: 0.0006s
+2025-05-30 09:45:27,187 - INFO - Stop event received. Initiating shutdown.
+2025-05-30 09:45:27,189 - INFO - Markers saved successfully.
+2025-05-30 09:45:27,189 - INFO - Stopping playback...
+2025-05-30 09:45:27,189 - INFO - Playback fully stopped.
+2025-05-30 09:45:27,189 - INFO - Application main loop finished.
+2025-05-30 09:45:27,193 - INFO - Application exited.
+2025-05-30 09:45:27,194 - INFO - Stopping playback...
+2025-05-30 09:45:27,194 - INFO - Playback fully stopped.

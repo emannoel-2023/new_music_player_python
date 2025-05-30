@@ -4,6 +4,7 @@ import os
 import subprocess
 import threading
 import queue
+import pathlib
 
 from ui_utils import init_cores, uso_recursos, limpar_terminal
 from ui_components import UIComponents
@@ -71,10 +72,11 @@ class UIPlayer:
                 self.proxima()
 
     def _display_ui_message(self, message):
+        """Exibe uma mensagem na fila para ser mostrada na UI. Lida com mensagens longas."""
         try:
             self.ui_message_queue.put_nowait(message)
         except queue.Full:
-            pass
+            pass 
 
     def buscar_musicas(self):
         self.stdscr.nodelay(False)
@@ -192,13 +194,9 @@ class UIPlayer:
             if audio.channels == 2:
                 left = arr[0::2]
                 right = arr[1::2]
-                left_eq = self._apply_equalizer(left, audio.frame_rate)
-                right_eq = self._apply_equalizer(right, audio.frame_rate)
-                arr_eq = np.empty(len(arr), dtype=np.float32)
-                arr_eq[0::2] = left_eq
-                arr_eq[1::2] = right_eq
+                arr_eq = arr
             else:
-                arr_eq = self._apply_equalizer(arr, audio.frame_rate)
+                arr_eq = arr
 
             arr_eq = np.clip(arr_eq, -32768, 32767).astype(np.int16)
             audio_eq = audio._spawn(arr_eq.tobytes())
@@ -247,7 +245,7 @@ class UIPlayer:
             elif key == curses.KEY_LEFT:
                 controle = controles[idx]
                 self.equalizacao[controle] = max(-10, self.equalizacao[controle] - 0.5)
-                self.player.set_equalizacao( # Enfileira o comando
+                self.player.set_equalizacao( 
                     self.equalizacao['grave'],
                     self.equalizacao['medio'],
                     self.equalizacao['agudo']
@@ -255,7 +253,7 @@ class UIPlayer:
             elif key == curses.KEY_RIGHT:
                 controle = controles[idx]
                 self.equalizacao[controle] = min(10, self.equalizacao[controle] + 0.5)
-                self.player.set_equalizacao( 
+                self.player.set_equalizacao(
                     self.equalizacao['grave'],
                     self.equalizacao['medio'],
                     self.equalizacao['agudo']
@@ -346,13 +344,18 @@ class UIPlayer:
             return
 
         prompt_text = "Cole o caminho do diretório (use '/' ou '\\'):"
-        caminho = self.ui_components.solicitar_entrada_em_janela(prompt_text, largura=min_cols_for_input_window)
+        caminho_raw = self.ui_components.solicitar_entrada_em_janela(prompt_text, largura=min_cols_for_input_window)
+        
+        if caminho_raw:
+            caminho_path = pathlib.Path(caminho_raw)
+            try:
+                caminho = str(caminho_path.resolve()) 
+            except Exception as e:
+                self._display_ui_message(f"Erro ao normalizar o caminho: {e}. Pressione qualquer tecla...")
+                self.stdscr.nodelay(True)
+                return
 
         self.stdscr.nodelay(True)
-
-        if os.name == 'nt':
-            caminho = caminho.replace('\\', '/')
-
         if os.path.isdir(caminho):
             thread_carregar = threading.Thread(target=self._load_directory_and_play_first_threaded, args=(caminho,))
             thread_carregar.daemon = True
@@ -369,6 +372,7 @@ class UIPlayer:
             self.playlist_selecionada = 0
             self.playlist_offset = 0
             self._tocar_selecionada()
+        
         self._display_ui_message(f"Diretório '{caminho}' carregado! Pressione qualquer tecla...")
 
 
@@ -473,8 +477,8 @@ class UIPlayer:
             if key == curses.KEY_UP:
                 selected_item_index = max(0, selected_item_index - 1)
             elif key == curses.KEY_DOWN:
-                selected_item_index = min(len(items) - 1, selected_item_index + 1)
-            elif key in (curses.KEY_ENTER, 10, 13): # Enter
+                selected_item_index = min(len(items) - 1, selected_item_index + 1) 
+            elif key in (curses.KEY_ENTER, 10, 13): 
                 if not items:
                     self._display_ui_message("Diretório vazio, nada para selecionar. Pressione qualquer tecla...")
                     continue
@@ -514,8 +518,8 @@ class UIPlayer:
 
     def _load_and_play_threaded_from_browser(self, selected_file_path, current_path):
         self.playlist.carregar_diretorio(current_path)
-        self.player.carregar_musica(selected_file_path) # Enfileira o comando
-        self.player.play() # Enfileira o comando
+        self.player.carregar_musica(selected_file_path) 
+        self.player.play() 
         self.historico.adicionar(selected_file_path)
 
         try:
@@ -1118,6 +1122,8 @@ class UIPlayer:
                 self.controlar_equalizacao()
             elif key in (ord('x'), ord('X')):
                 self.mostrar_estatisticas()
+            elif key == ord('i') or key == ord('I'):
+                self.abrir_navegador_arquivos()
 
             time.sleep(0.02)
 

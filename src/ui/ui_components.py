@@ -3,6 +3,8 @@ import os
 from pyfiglet import Figlet
 import math
 import time
+import unicodedata
+import pathlib
 
 class UIComponents:
     def __init__(self, stdscr):
@@ -82,7 +84,7 @@ class UIComponents:
             
             val = espectro_atual[idx_espectro] if idx_espectro < len(espectro_atual) else 0
             val *= fator_ponderacao 
-
+            
             h = max(0, min(altura, int(val + 0.5))) 
 
             col_left = start_x_centered + (barras_por_lado - 1 - i) * 2
@@ -257,7 +259,7 @@ class UIComponents:
 
     def desenhar_menu_inferior(self, y, x):
         menu_line1_base = "[1]Abrir [2]Play/Pause [3]Ant [4]Próx [+/-]Vol [C]Criar [A]Add [D]Rem [F]Fav"
-        menu_line2_base = "[S]Saltar [O]Ordenar [H]Histórico [L]Listar [B]Buscar [T]Filtrar [E]EQ [X]Stats [Q]Sair [R]Rádio"
+        menu_line2_base = "[S]Saltar [O]Ordenar [H]Histórico [L]Listar [B]Buscar [T]Filtrar [E]EQ [X]Stats [Q]Sair [R]Rádio [I]Navegar" # Adicionado [I]Navegar
         
         largura_disponivel = curses.COLS - x - 2 
 
@@ -276,6 +278,24 @@ class UIComponents:
         except curses.error:
             pass 
         self.stdscr.attroff(curses.A_REVERSE)
+
+    def _clean_input_string(self, input_str):
+        """
+        Normaliza e limpa a string de entrada, removendo caracteres de controle
+        e normalizando a representação Unicode para caminhos de arquivo.
+        """
+        normalized_str = unicodedata.normalize('NFC', input_str)
+
+        clean_str_chars = []
+        for char in normalized_str:
+            if unicodedata.category(char).startswith('C') or char in ('\u200e', '\u200f', '\u200b'):
+                continue
+            clean_str_chars.append(char)
+        
+        final_str = "".join(clean_str_chars).strip()
+
+
+        return final_str
 
     def solicitar_entrada(self, prompt, y):
         curses.echo()  
@@ -296,7 +316,8 @@ class UIComponents:
             if max_input_len < 0: 
                 max_input_len = 0 
             
-            entrada = self.stdscr.getstr(y, 2 + len(prompt), max_input_len).decode("utf-8").strip()
+            raw_entrada = self.stdscr.getstr(y, 2 + len(prompt), max(512, max_input_len)).decode("utf-8")
+            entrada = self._clean_input_string(raw_entrada)
         except curses.error:
             entrada = "" 
         
@@ -305,20 +326,49 @@ class UIComponents:
 
     def mostrar_mensagem(self, mensagem, y):
         largura_disponivel = curses.COLS - 4 
-        if len(mensagem) > largura_disponivel:
-            mensagem = mensagem[:largura_disponivel - 3] + "..."
-
-        self.stdscr.move(y, 2)
-        self.stdscr.clrtoeol()
-        try:
-            self.stdscr.addstr(y, 2, mensagem)
-            self.stdscr.refresh()
-            self.stdscr.getch() 
-        except curses.error:
-            pass 
         
-        self.stdscr.move(y, 2)
-        self.stdscr.clrtoeol() 
+        for i in range(3): 
+            try:
+                self.stdscr.move(y + i, 2)
+                self.stdscr.clrtoeol()
+            except curses.error:
+                pass
+
+        linhas_msg = []
+        temp_mensagem = mensagem 
+        while temp_mensagem:
+            if len(temp_mensagem) > largura_disponivel:
+                quebra = temp_mensagem[:largura_disponivel]
+                ultimo_espaco = quebra.rfind(' ')
+                if ultimo_espaco > largura_disponivel // 2: 
+                    linhas_msg.append(temp_mensagem[:ultimo_espaco])
+                    temp_mensagem = temp_mensagem[ultimo_espaco+1:]
+                else:
+                    linhas_msg.append(temp_mensagem[:largura_disponivel])
+                    temp_mensagem = temp_mensagem[largura_disponivel:]
+            else:
+                linhas_msg.append(temp_mensagem)
+                temp_mensagem = ""
+        
+        for i, linha in enumerate(linhas_msg):
+            if y + i < curses.LINES - 1:
+                try:
+                    self.stdscr.addstr(y + i, 2, linha)
+                except curses.error:
+                    pass
+            else:
+                break 
+
+        self.stdscr.refresh()
+        self.stdscr.getch() 
+
+        for i in range(len(linhas_msg)):
+            if y + i < curses.LINES - 1:
+                try:
+                    self.stdscr.move(y + i, 2)
+                    self.stdscr.clrtoeol() 
+                except curses.error:
+                    pass
 
     def criar_barra_eq(self, valor):
         pos = int((valor + 10) / 20 * 20)  
@@ -334,9 +384,19 @@ class UIComponents:
         return barra
 
     def solicitar_entrada_em_janela(self, prompt, largura=60, altura=5):
+        MAX_PATH_LENGTH = 2048 
+
         max_y, max_x = self.stdscr.getmaxyx()
         win_y = max(0, (max_y - altura) // 2)
         win_x = max(0, (max_x - largura) // 2)
+
+        altura = min(altura, max_y)
+        largura = min(largura, max_x)
+        if win_y + altura > max_y: win_y = max_y - altura
+        if win_x + largura > max_x: win_x = max_x - largura
+        if win_y < 0: win_y = 0
+        if win_x < 0: win_x = 0
+
 
         input_win = curses.newwin(altura, largura, win_y, win_x)
         input_win.box()
@@ -346,25 +406,24 @@ class UIComponents:
         input_win.addstr(1, 2, prompt)
         input_win.refresh()
 
-        curses.echo()
-        
+        curses.echo() 
+
         entrada_str = ""
         while True:
             cursor_y = 3
             input_start_x = 2
-
+            
             input_win.move(cursor_y, input_start_x)
             input_win.clrtoeol()
             
             display_entrada = entrada_str
-            max_input_display_len = largura - 4
+            max_input_display_len = largura - input_start_x - 2 
 
             if len(display_entrada) > max_input_display_len:
-                display_entrada = display_entrada[-(max_input_display_len):] 
+                display_entrada = "..." + display_entrada[-(max_input_display_len - 3):] 
 
-            input_win.box()
+            input_win.box() 
             input_win.addstr(1, 2, prompt)
-
             input_win.addstr(cursor_y, input_start_x, display_entrada)
             input_win.move(cursor_y, input_start_x + len(display_entrada))
             input_win.refresh()
@@ -372,15 +431,15 @@ class UIComponents:
             try:
                 key = input_win.getch()
             except curses.error:
-                key = -1
+                key = -1 
 
             if key == curses.KEY_ENTER or key == 10 or key == 13:
-                break
+                break 
             elif key == curses.KEY_BACKSPACE or key == 127 or key == curses.KEY_DC:
                 if entrada_str:
                     entrada_str = entrada_str[:-1]
-            elif 32 <= key <= 126:
-                if len(entrada_str) < max_input_display_len + 10: 
+            elif 32 <= key <= 126 or key > 255: 
+                if len(entrada_str) < MAX_PATH_LENGTH: 
                     entrada_str += chr(key)
             elif key == curses.KEY_RESIZE:
                 curses.endwin()
@@ -389,17 +448,31 @@ class UIComponents:
                 max_y, max_x = self.stdscr.getmaxyx()
                 win_y = max(0, (max_y - altura) // 2)
                 win_x = max(0, (max_x - largura) // 2)
+
+                altura = min(altura, max_y)
+                largura = min(largura, max_x)
+                if win_y + altura > max_y: win_y = max_y - altura
+                if win_x + largura > max_x: win_x = max_x - largura
+                if win_y < 0: win_y = 0
+                if win_x < 0: win_x = 0
+
                 input_win.mvwin(win_y, win_x)
                 input_win.clear()
                 input_win.box()
                 input_win.addstr(1, 2, prompt)
+                display_entrada = entrada_str
+                max_input_display_len = largura - input_start_x - 2
+                if len(display_entrada) > max_input_display_len:
+                    display_entrada = "..." + display_entrada[-(max_input_display_len - 3):]
+                input_win.addstr(cursor_y, input_start_x, display_entrada)
+                input_win.move(cursor_y, input_start_x + len(display_entrada))
                 input_win.refresh()
                 continue
 
-        curses.noecho()
-        curses.curs_set(0)
-        input_win.clear()
+        curses.noecho() 
+        curses.curs_set(0) 
+        input_win.clear() 
         input_win.refresh()
-        del input_win
+        del input_win 
 
-        return entrada_str.strip()
+        return self._clean_input_string(entrada_str)
