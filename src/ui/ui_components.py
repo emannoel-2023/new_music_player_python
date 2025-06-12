@@ -86,7 +86,7 @@ class UIComponents:
             val *= fator_ponderacao 
             
             h = max(0, min(altura, int(val + 0.5))) 
-
+            
             col_left = start_x_centered + (barras_por_lado - 1 - i) * 2
 
             col_right = start_x_centered + barras_por_lado * 2 + i * 2
@@ -226,24 +226,37 @@ class UIComponents:
                 self.stdscr.addstr(y + altura - 1, x, coluna_info)
             except curses.error:
                 pass 
-
+            
     def desenhar_status(self, nome_musica, progresso, duracao, y, x):
-        from ui_utils import formatar_tempo 
-        
-        largura_disponivel = curses.COLS - x - 2 
-        
+        # A importação de formatar_tempo deve vir do ui_utils
+        from ui_utils import formatar_tempo
+
+        largura_disponivel = curses.COLS - x * 2
+
+        # Linha do nome da música
         texto_musica = f"Tocando: {nome_musica if nome_musica else 'Nenhuma música'}"
         if len(texto_musica) > largura_disponivel:
             texto_musica = texto_musica[:largura_disponivel - 3] + "..."
 
         try:
             self.stdscr.addstr(y, x, texto_musica)
-            tempo_str = f"{formatar_tempo(progresso)} / {formatar_tempo(duracao)}"
+            self.stdscr.clrtoeol() # Limpa o resto da linha
+
+            # Linha de progresso/duração
+            if isinstance(progresso, (int, float)) and isinstance(duracao, (int, float)):
+                # Se forem números, formata usando formatar_tempo
+                tempo_str = f"{formatar_tempo(progresso)} / {formatar_tempo(duracao)}"
+            else:
+                # Se forem strings (como "---"), usa-as diretamente
+                tempo_str = f"{progresso} / {duracao}"
+
             if len(tempo_str) > largura_disponivel:
                 tempo_str = tempo_str[:largura_disponivel - 3] + "..."
+
             self.stdscr.addstr(y + 1, x, tempo_str)
+            self.stdscr.clrtoeol() # Limpa o resto da linha
         except curses.error:
-            pass 
+            pass
 
     def desenhar_recursos(self, cpu, ram, y, x):
         texto = f"CPU: {cpu:.1f}% | RAM: {ram:.1f} MB"
@@ -259,7 +272,7 @@ class UIComponents:
 
     def desenhar_menu_inferior(self, y, x):
         menu_line1_base = "[1]Abrir [2]Play/Pause [3]Ant [4]Próx [+/-]Vol [C]Criar [A]Add [D]Rem [F]Fav"
-        menu_line2_base = "[S]Saltar [O]Ordenar [H]Histórico [L]Listar [B]Buscar [T]Filtrar [E]EQ [X]Stats [Q]Sair [R]Rádio [I]Navegar" # Adicionado [I]Navegar
+        menu_line2_base = "[S]Saltar [O]Ordenar [H]Histórico [L]Listar [B]Buscar [T]Filtrar [E]EQ [X]Stats [Q]Sair [R]Rádio [Y]YouTube [I]Navegar" # Adicionado [Y]YouTube
         
         largura_disponivel = curses.COLS - x - 2 
 

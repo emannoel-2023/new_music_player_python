@@ -6,7 +6,7 @@ import threading
 import queue
 import pathlib
 
-from ui_utils import init_cores, uso_recursos, limpar_terminal
+from ui_utils import init_cores, uso_recursos, limpar_terminal, formatar_tempo
 from ui_components import UIComponents
 from constants import PASTA_DADOS
 
@@ -18,6 +18,7 @@ from config_manager import ConfigManager
 from radio_terminal.radio import RadioPlayer
 from biblioteca import Musica
 
+from youtube_integration import YouTubeIntegration
 
 class UIPlayer:
     def __init__(self, stdscr):
@@ -37,11 +38,14 @@ class UIPlayer:
         self.executando = True
         self.espectro_atual = [0] * 20
         self.radio_ativo = False
+        self.youtube_ativo = False
+        self.youtube_carregando = False # Esta flag não será mais usada para exibir o loading na UI Curses
         self.equalizacao = {'grave': 0, 'medio': 0, 'agudo': 0}
         self.modo_visualizacao = 'lista'
         self.filtro_atual = None
         self.termo_busca_atual = ""
         self.musica_pausada_para_radio = False
+        self.musica_pausada_para_youtube = False
 
         self.curses_lines = curses.LINES
         self.curses_cols = curses.COLS
@@ -56,6 +60,7 @@ class UIPlayer:
         self.player.add_observer(self)
 
         self.ui_message_queue = queue.Queue()
+        self.youtube_integration = YouTubeIntegration(self.ui_message_queue)
 
 
     def atualizar(self, evento):
@@ -68,15 +73,15 @@ class UIPlayer:
         elif evento == 'equalizacao':
             pass
         elif evento == 'musica_terminada':
-            if not self.radio_ativo:
+            if not self.radio_ativo and not self.youtube_ativo:
                 self.proxima()
 
     def _display_ui_message(self, message):
-        """Exibe uma mensagem na fila para ser mostrada na UI. Lida com mensagens longas."""
+        """Enfileira uma mensagem para ser mostrada na UI. Lida com mensagens longas."""
         try:
             self.ui_message_queue.put_nowait(message)
         except queue.Full:
-            pass 
+            pass
 
     def buscar_musicas(self):
         self.stdscr.nodelay(False)
@@ -245,7 +250,7 @@ class UIPlayer:
             elif key == curses.KEY_LEFT:
                 controle = controles[idx]
                 self.equalizacao[controle] = max(-10, self.equalizacao[controle] - 0.5)
-                self.player.set_equalizacao( 
+                self.player.set_equalizacao(
                     self.equalizacao['grave'],
                     self.equalizacao['medio'],
                     self.equalizacao['agudo']
@@ -275,6 +280,9 @@ class UIPlayer:
             if max_lines_content > 0:
                 self.stdscr.addstr(y_offset, 2, "Músicas mais tocadas:", curses.color_pair(3) | curses.A_BOLD)
                 y_offset += 1
+                if not stats:
+                    self.stdscr.addstr(y_offset, 4, "Nenhuma música tocada ainda.")
+                    y_offset += 1
                 for i, (musica, count) in enumerate(stats):
                     if y_offset + i >= curses.LINES - 2:
                         break
@@ -321,7 +329,12 @@ class UIPlayer:
                             self.stdscr.addstr(y_offset, 4, f"Artistas diferentes: {len(artistas)}")
                             y_offset += 1
 
-            self._display_ui_message("Pressione qualquer tecla para voltar...")
+            prompt_message = "Pressione qualquer tecla para voltar..."
+            prompt_y = curses.LINES - 2
+            if prompt_y >= 0:
+                self.stdscr.addstr(prompt_y, 2, prompt_message)
+            self.stdscr.refresh()
+            self.stdscr.getch()
 
         except curses.error:
             self._display_ui_message("Terminal muito pequeno para estatísticas!")
@@ -345,11 +358,11 @@ class UIPlayer:
 
         prompt_text = "Cole o caminho do diretório (use '/' ou '\\'):"
         caminho_raw = self.ui_components.solicitar_entrada_em_janela(prompt_text, largura=min_cols_for_input_window)
-        
+
         if caminho_raw:
             caminho_path = pathlib.Path(caminho_raw)
             try:
-                caminho = str(caminho_path.resolve()) 
+                caminho = str(caminho_path.resolve())
             except Exception as e:
                 self._display_ui_message(f"Erro ao normalizar o caminho: {e}. Pressione qualquer tecla...")
                 self.stdscr.nodelay(True)
@@ -372,7 +385,7 @@ class UIPlayer:
             self.playlist_selecionada = 0
             self.playlist_offset = 0
             self._tocar_selecionada()
-        
+
         self._display_ui_message(f"Diretório '{caminho}' carregado! Pressione qualquer tecla...")
 
 
@@ -477,8 +490,8 @@ class UIPlayer:
             if key == curses.KEY_UP:
                 selected_item_index = max(0, selected_item_index - 1)
             elif key == curses.KEY_DOWN:
-                selected_item_index = min(len(items) - 1, selected_item_index + 1) 
-            elif key in (curses.KEY_ENTER, 10, 13): 
+                selected_item_index = min(len(items) - 1, selected_item_index + 1)
+            elif key in (curses.KEY_ENTER, 10, 13):
                 if not items:
                     self._display_ui_message("Diretório vazio, nada para selecionar. Pressione qualquer tecla...")
                     continue
@@ -517,18 +530,12 @@ class UIPlayer:
         self.stdscr.nodelay(True)
 
     def _load_and_play_threaded_from_browser(self, selected_file_path, current_path):
+        self.biblioteca.carregar_diretorio(current_path)
         self.playlist.carregar_diretorio(current_path)
-        self.player.carregar_musica(selected_file_path) 
-        self.player.play() 
-        self.historico.adicionar(selected_file_path)
-
-        try:
-            self.playlist_selecionada = self.playlist.playlist_atual.index(selected_file_path)
-            itens_por_coluna_fixo = 9
-            self.playlist_offset = self.playlist_selecionada // itens_por_coluna_fixo
-        except ValueError:
+        if self.playlist.playlist_atual:
             self.playlist_selecionada = 0
             self.playlist_offset = 0
+            self._tocar_selecionada()
 
         self._display_ui_message(f"Tocando: {os.path.basename(selected_file_path)}")
 
@@ -809,7 +816,7 @@ class UIPlayer:
             except Exception as e:
                 self.musica_pausada_para_radio = False
 
-        self.radio_ativo = True
+        self.radio_ativo = True # Ativa a flag ANTES de curses.endwin()
         curses.endwin()
 
         radio_dir = os.path.join(os.path.dirname(__file__), '..','..', 'radio_terminal')
@@ -831,12 +838,32 @@ class UIPlayer:
                     except FileNotFoundError:
                         continue
                 if not terminal_emulator_found:
+                    # Se nenhum emulador de terminal for encontrado, ainda precisamos restaurar o curses.
+                    self.stdscr = curses.initscr()
+                    curses.noecho()
+                    curses.cbreak()
+                    self.stdscr.keypad(True)
+                    curses.curs_set(0)
+                    init_cores()
+                    self.stdscr.clear()
+                    self.stdscr.refresh()
                     self._display_ui_message("Nenhum emulador de terminal compatível encontrado.")
                     time.sleep(2)
         except Exception as e:
+            # Em caso de erro ao iniciar o rádio, restaurar o curses também.
+            self.stdscr = curses.initscr()
+            curses.noecho()
+            curses.cbreak()
+            self.stdscr.keypad(True)
+            curses.curs_set(0)
+            init_cores()
+            self.stdscr.clear()
+            self.stdscr.refresh()
             self._display_ui_message(f"Erro ao iniciar rádio: {e}")
             time.sleep(2)
 
+        # Re-inicializa o curses após o término do player externo (ou erro)
+        # É importante que isso aconteça APÓS o subprocess.run() que bloqueia.
         self.stdscr = curses.initscr()
         curses.noecho()
         curses.cbreak()
@@ -846,7 +873,7 @@ class UIPlayer:
         self.stdscr.clear()
         self.stdscr.refresh()
 
-        self.radio_ativo = False
+        self.radio_ativo = False # Desativa a flag APÓS o subprocesso terminar
 
         if self.musica_pausada_para_radio:
             try:
@@ -858,7 +885,103 @@ class UIPlayer:
 
         self.stdscr.nodelay(True)
 
+    def abrir_youtube(self):
+        self.musica_pausada_para_youtube = False
+        if self.player.get_nome() and self.player.is_playing():
+            try:
+                self.player.pause()
+                time.sleep(0.1)
+                self.musica_pausada_para_youtube = True
+            except Exception as e:
+                self.musica_pausada_para_youtube = False
+                self._display_ui_message(f"Erro ao pausar música: {e}. Continuará.")
+
+        # Altera para modo de entrada de texto e mostra cursor
+        self.stdscr.nodelay(False)
+        curses.curs_set(1)
+
+        prompt_text = "Cole a URL do YouTube (vídeo ou playlist):"
+        url = self.ui_components.solicitar_entrada_em_janela(prompt_text, largura=curses.COLS - 10)
+
+        # Verifica se a URL foi fornecida ANTES de desativar o curses
+        if not url:
+            # Se não houver URL, reativamos o curses e retornamos à UI principal
+            curses.curs_set(0) # Esconde o cursor
+            self.stdscr.nodelay(True) # Reativa o nodelay
+            self._display_ui_message("Nenhuma URL fornecida. Pressione qualquer tecla...")
+            if self.musica_pausada_para_youtube:
+                try:
+                    self.player.resume()
+                except Exception:
+                    pass
+                self.musica_pausada_para_youtube = False
+            self.youtube_ativo = False # Garante que a flag está desligada
+            self.youtube_carregando = False # Garante que a flag está desligada
+            return
+        
+        # --- FLUXO PRINCIPAL: DESATIVAR CURSES E INICIAR MPV ---
+        # 1. Ativa as flags DEPOIS de obter a URL, mas ANTES de curses.endwin()
+        self.youtube_ativo = True
+        self.youtube_carregando = True 
+
+        # 2. Esconde a interface Curses AGORA.
+        curses.endwin()
+
+        # 3. Exibe mensagem de loading no console de execução.
+        print(f"\n--- INICIANDO YOUTUBE ---")
+        print(f"URL: {url[:80]}...") 
+        print(f"Carregando MPV, por favor, aguarde a janela abrir...")
+        
+        # 4. Lança a reprodução do YouTube em uma thread separada.
+        #    Esta thread BLOQUEIA ATÉ MPV ENCERRAR.
+        threading.Thread(target=self._play_youtube_threaded, args=(url,)).start()
+
+    def _play_youtube_threaded(self, url):
+        # curses.endwin() já foi chamado em abrir_youtube, não é necessário aqui.
+        
+        # Chama o método de reprodução do módulo de integração.
+        success = self.youtube_integration.play_url(url) # Não passa audio_only=True
+
+        # A execução do código aqui continua SOMENTE DEPOIS que mpv encerra.
+        # Isso garante que a UI do Curses só seja restaurada depois.
+
+        # Re-inicializa o curses após o término do player externo (ou erro)
+        # É importante que isso aconteça APÓS o mpv_process_handle.wait() que bloqueia.
+        self.stdscr = curses.initscr()
+        curses.noecho()
+        curses.cbreak()
+        self.stdscr.keypad(True)
+        curses.curs_set(0)
+        init_cores()
+        self.stdscr.clear()
+        self.stdscr.refresh()
+
+        # mpv_process terminou, então youtube_ativo e youtube_carregando devem ser False
+        self.youtube_ativo = False
+        self.youtube_carregando = False
+
+        if success:
+            self._display_ui_message(f"Reprodução do YouTube finalizada. Pressione qualquer tecla...")
+        else:
+            self._display_ui_message("Falha na reprodução do YouTube. Verifique o console para avisos/erros. Pressione qualquer tecla...")
+
+        # Retoma a música pausada, se houver
+        if self.musica_pausada_para_youtube:
+            try:
+                self.player.resume()
+                time.sleep(0.1)
+                self._display_ui_message("Música local retomada.")
+            except Exception as e:
+                self._display_ui_message(f"Erro ao retomar música: {e}.")
+            self.musica_pausada_para_youtube = False
+
+        self.stdscr.nodelay(True)
+
     def draw_interface(self):
+        # NÃO DESENHA A INTERFACE SE O RÁDIO OU YOUTUBE ESTIVER ATIVO
+        if self.radio_ativo or self.youtube_ativo:
+            return
+
         self.stdscr.clear()
 
         min_linhas = 20
@@ -907,7 +1030,7 @@ class UIPlayer:
         if not hasattr(self, 'espectro_atual') or len(self.espectro_atual) != num_barras_player:
             self.espectro_atual = [0.0] * num_barras_player
 
-        if tocando:
+        if tocando: # Não precisamos mais verificar radio_ativo ou youtube_ativo aqui, pois o draw_interface já é condicional
             try:
                 espectro_raw = self.player.espectro(num_barras=num_barras_player)
                 for i in range(min(len(espectro_raw), len(self.espectro_atual))):
@@ -941,6 +1064,8 @@ class UIPlayer:
         cpu_usage, ram_usage = uso_recursos()
         self.ui_components.desenhar_recursos(cpu_usage, ram_usage, y=recursos_y, x=2)
         self.ui_components.desenhar_volume(self.volume, y=volume_y, x=2)
+
+        # O status agora só será exibido se não estivermos em modo rádio/youtube
         self.ui_components.desenhar_status(
             self.player.get_nome(),
             self.player.get_progresso(),
@@ -961,25 +1086,35 @@ class UIPlayer:
         while self.executando:
             self.player.check_events()
 
+            # A reprodução automática da próxima música só deve ocorrer se não estivermos no modo rádio/youtube
             if (not self.radio_ativo and
+                not self.youtube_ativo and 
                 not self.player.is_playing() and
                 self.player.get_duracao() > 0 and
                 (self.player.get_progresso() >= self.player.get_duracao() - 0.1) and
                 not self.player.pausado and
-                not self.musica_pausada_para_radio):
+                not self.musica_pausada_para_radio and
+                not self.musica_pausada_para_youtube):
                 self.proxima()
 
 
             current_lines = curses.LINES
             current_cols = curses.COLS
 
-            if current_lines != self.curses_lines or current_cols != self.curses_cols:
-                self.curses_lines = current_lines
-                self.curses_cols = current_cols
-                curses.resizeterm(current_lines, current_cols)
-                self.draw_interface()
+            # Ação de redimensionamento do terminal só deve acontecer se a UI Curses estiver ativa
+            if not self.radio_ativo and not self.youtube_ativo:
+                if current_lines != self.curses_lines or current_cols != self.curses_cols:
+                    self.curses_lines = current_lines
+                    self.curses_cols = current_cols
+                    curses.resizeterm(current_lines, current_cols)
+                    self.draw_interface() # Redesenha após redimensionamento
 
-            self.draw_interface()
+                self.draw_interface() # Desenha a interface no loop normal
+            else:
+                # Se rádio ou YouTube estiverem ativos, não redesenhe a UI Curses.
+                # Apenas aguarde um pouco para não consumir CPU desnecessariamente.
+                time.sleep(0.1)
+
 
             self.config_manager.set('volume', self.volume)
             self.config_manager.set('equalizacao', self.equalizacao)
@@ -987,12 +1122,29 @@ class UIPlayer:
             self.playlist.salvar_estado()
 
             try:
-                key = self.stdscr.getch()
+                # Obter entrada APENAS se a UI Curses estiver ativa, ou se estivermos em modo "console livre"
+                # para capturar um 'q' para sair ou teclas para interagir com o rádio/youtube
+                if not self.radio_ativo and not self.youtube_ativo:
+                    key = self.stdscr.getch()
+                else:
+                    # Quando o curses está desativado (endwin), getch() não funciona como esperado.
+                    # As interações com o rádio/youtube acontecem no próprio subprocesso.
+                    # Aqui, podemos adicionar um pequeno delay e, se necessário,
+                    # uma forma de verificar a saída do subprocesso ou um sinal.
+                    # Para este caso, o `subprocess.run` (ou `Popen.wait()`) já está bloqueando a thread
+                    # então não haverá teclas Curses para pegar até que ele retorne.
+                    key = -1 # Nenhuma tecla Curses lida se o curses está desativado
             except KeyboardInterrupt:
                 break
 
             if key == -1:
-                time.sleep(0.02)
+                # Apenas continue o loop se nenhuma tecla foi pressionada
+                # e se não estivermos em modo rádio/youtube (já tratado pelo time.sleep acima)
+                continue
+
+            # Não processe teclas se youtube_ativo ou radio_ativo estiverem True,
+            # pois o terminal está sendo usado pelo subprocesso externo.
+            if self.youtube_ativo or self.radio_ativo:
                 continue
 
             itens_por_coluna = self.ui_components.calcular_itens_por_coluna_playlist()
@@ -1065,6 +1217,8 @@ class UIPlayer:
                 self.executando = False
             elif key in (ord('r'), ord('R')):
                 self.abrir_radio()
+            elif key in (ord('y'), ord('Y')):
+                self.abrir_youtube()
             elif key in (ord('h'), ord('H')):
                 self.mostrar_historico()
             elif key in (ord('l'), ord('L')):
@@ -1125,11 +1279,16 @@ class UIPlayer:
             elif key == ord('i') or key == ord('I'):
                 self.abrir_navegador_arquivos()
 
+            # Pequeno delay no loop para evitar consumo excessivo de CPU.
+            # Este sleep é mais importante quando a UI Curses está desativada.
             time.sleep(0.02)
 
     def __del__(self):
         if hasattr(self, 'player') and self.player is not None:
             self.player.quit()
+        if hasattr(self, 'youtube_integration'):
+            self.youtube_integration.stop_player()
+
 
 def main(stdscr):
     player_ui = UIPlayer(stdscr)
