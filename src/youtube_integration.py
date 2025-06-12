@@ -50,8 +50,22 @@ class YouTubeIntegration:
             self._display_message("Erro: 'yt-dlp' não está instalado ou não está no PATH. Não é possível reproduzir YouTube.")
             return False
 
+        # Define as dimensões da janela desejada.
+        # Tente usar uma proporção 16:9 (por exemplo, 640x360, 800x450, 960x540)
+        # para evitar distorção visual, já que --geometry não a mantém automaticamente.
+        window_width = 800
+        window_height = 450 
+
         command = ['mpv', url]
-        # A linha 'command.append('--no-video')' foi removida para permitir a reprodução de vídeo.
+        # Usando --geometry para forçar o tamanho da janela
+        # O '!' no final de WxH força a janela a ter EXATAMENTE este tamanho,
+        # ignorando a proporção do vídeo. Se você preferir que a proporção seja mantida
+        # dentro de uma caixa WxH, remova o '!'.
+        command.append(f'--geometry={window_width}x{window_height}')
+        # Se você quiser que a janela apareça em uma posição específica (por exemplo, centro)
+        # pode adicionar um offset. Ex: `--geometry=800x450+C` para centralizar.
+        # Ou `--geometry=800x450+50+50` para 50 pixels da borda superior e esquerda.
+
 
         try:
             self.mpv_process_handle = subprocess.Popen(command)

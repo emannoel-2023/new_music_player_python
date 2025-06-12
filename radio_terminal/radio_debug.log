@@ -31463,3 +31463,91 @@ UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe3 in position 76: invalid
 2025-06-11 19:59:07,696 - INFO - Application exited.
 2025-06-11 19:59:07,697 - INFO - Stopping playback...
 2025-06-11 19:59:07,697 - INFO - Playback fully stopped.
+2025-06-11 22:15:32,718 - INFO - Loaded 52616 radios.
+2025-06-11 22:15:32,753 - INFO - Starting draw interface loop.
+2025-06-11 22:15:32,834 - DEBUG - Draw cycle time: 0.0182s
+2025-06-11 22:15:32,892 - DEBUG - Draw cycle time: 0.0001s
+2025-06-11 22:15:33,019 - DEBUG - Draw cycle time: 0.0001s
+2025-06-11 22:15:33,146 - DEBUG - Draw cycle time: 0.0003s
+2025-06-11 22:15:33,270 - DEBUG - Draw cycle time: 0.0003s
+2025-06-11 22:15:33,395 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:33,458 - DEBUG - Draw cycle time: 0.0014s
+2025-06-11 22:15:33,581 - DEBUG - Draw cycle time: 0.0004s
+2025-06-11 22:15:33,644 - DEBUG - Draw cycle time: 0.0014s
+2025-06-11 22:15:33,771 - DEBUG - Draw cycle time: 0.0014s
+2025-06-11 22:15:33,894 - DEBUG - Draw cycle time: 0.0001s
+2025-06-11 22:15:33,956 - DEBUG - Draw cycle time: 0.0009s
+2025-06-11 22:15:34,079 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:34,206 - INFO - Stopping playback...
+2025-06-11 22:15:34,206 - INFO - Playback fully stopped.
+2025-06-11 22:15:34,206 - INFO - Starting MPV with command: mpv --no-video --input-ipc-server=\\.\pipe\mpvpipe-4684 --cache=yes --cache-secs=10 --network-timeout=10 --force-media-title=Radio Stream --volume=50 --idle=no --quiet http://afghanradio.org:8000/;.mp3
+2025-06-11 22:15:34,213 - INFO - MPV process started with PID: 3468
+2025-06-11 22:15:34,215 - WARNING - Failed to connect to Win32 IPC pipe initially: (2, 'CreateFile', 'O sistema não pode encontrar o arquivo especificado.')
+2025-06-11 22:15:34,416 - INFO - Connected to Win32 IPC pipe: \\.\pipe\mpvpipe-4684
+2025-06-11 22:15:34,416 - DEBUG - Enqueuing IPC command: enable_event (ID: 1)
+2025-06-11 22:15:34,417 - DEBUG - Enqueuing IPC command: observe_property (ID: 2)
+2025-06-11 22:15:34,417 - DEBUG - Enqueuing IPC command: observe_property (ID: 3)
+2025-06-11 22:15:34,417 - DEBUG - Enqueuing IPC command: observe_property (ID: 4)
+2025-06-11 22:15:34,417 - INFO - MPV IPC: Enabled property observation.
+2025-06-11 22:15:34,418 - DEBUG - Draw cycle time: 0.0008s
+2025-06-11 22:15:34,422 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-06-11 22:15:34,422 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-06-11 22:15:34,422 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-06-11 22:15:34,422 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-06-11 22:15:34,422 - DEBUG - Metadata updated: N/A
+2025-06-11 22:15:34,472 - DEBUG - Draw cycle time: 0.0006s
+2025-06-11 22:15:34,597 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:34,722 - DEBUG - Draw cycle time: 0.0003s
+2025-06-11 22:15:34,788 - DEBUG - Draw cycle time: 0.0025s
+2025-06-11 22:15:34,911 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:35,038 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:35,163 - DEBUG - Draw cycle time: 0.0004s
+2025-06-11 22:15:35,289 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:35,414 - DEBUG - Draw cycle time: 0.0003s
+2025-06-11 22:15:35,538 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:35,664 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:35,799 - DEBUG - Draw cycle time: 0.0004s
+2025-06-11 22:15:35,928 - DEBUG - Draw cycle time: 0.0001s
+2025-06-11 22:15:36,056 - DEBUG - Draw cycle time: 0.0001s
+2025-06-11 22:15:36,182 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:36,307 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:36,432 - DEBUG - Draw cycle time: 0.0003s
+2025-06-11 22:15:36,556 - DEBUG - Draw cycle time: 0.0004s
+2025-06-11 22:15:36,680 - DEBUG - Draw cycle time: 0.0004s
+2025-06-11 22:15:36,814 - DEBUG - Draw cycle time: 0.0005s
+2025-06-11 22:15:36,934 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:37,059 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:37,185 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:37,308 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:37,433 - DEBUG - Draw cycle time: 0.0003s
+2025-06-11 22:15:37,558 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:37,618 - DEBUG - Metadata updated: Pamir Ministries - How Is You Relationship With Your Parents...
+2025-06-11 22:15:37,620 - DEBUG - Draw cycle time: 0.0006s
+2025-06-11 22:15:37,745 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:37,871 - DEBUG - Draw cycle time: 0.0016s
+2025-06-11 22:15:37,933 - DEBUG - Draw cycle time: 0.0006s
+2025-06-11 22:15:38,058 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:38,181 - DEBUG - Draw cycle time: 0.0002s
+2025-06-11 22:15:38,243 - DEBUG - Draw cycle time: 0.0005s
+2025-06-11 22:15:38,370 - INFO - Stop event received. Initiating shutdown.
+2025-06-11 22:15:38,372 - INFO - Markers saved successfully.
+2025-06-11 22:15:38,372 - INFO - Stopping playback...
+2025-06-11 22:15:38,372 - DEBUG - Enqueuing IPC command: quit (ID: 5)
+2025-06-11 22:15:38,373 - INFO - Sent 'quit' command to MPV via IPC.
+2025-06-11 22:15:38,376 - DEBUG - IPC Client (Win): Wrote command from queue.
+2025-06-11 22:15:38,383 - WARNING - MPV IPC pipe broken, attempting to reconnect...
+2025-06-11 22:15:38,383 - INFO - Closed Win32 IPC pipe handle.
+2025-06-11 22:15:38,383 - WARNING - Failed to connect to Win32 IPC pipe initially: (2, 'CreateFile', 'O sistema não pode encontrar o arquivo especificado.')
+2025-06-11 22:15:38,383 - INFO - MPVIPCClient run loop finished.
+2025-06-11 22:15:38,473 - INFO - MPVIPCClient stopping gracefully...
+2025-06-11 22:15:38,473 - INFO - MPV process stopped.
+2025-06-11 22:15:38,473 - INFO - Playback fully stopped.
+2025-06-11 22:15:38,474 - DEBUG - Draw cycle time: 0.0004s
+2025-06-11 22:15:38,474 - INFO - Stop event received. Initiating shutdown.
+2025-06-11 22:15:38,477 - INFO - Markers saved successfully.
+2025-06-11 22:15:38,477 - INFO - Stopping playback...
+2025-06-11 22:15:38,477 - INFO - Playback fully stopped.
+2025-06-11 22:15:38,477 - INFO - Application main loop finished.
+2025-06-11 22:15:38,478 - INFO - Application exited.
+2025-06-11 22:15:38,479 - INFO - Stopping playback...
+2025-06-11 22:15:38,479 - INFO - Playback fully stopped.
